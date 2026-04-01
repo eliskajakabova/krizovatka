@@ -281,7 +281,6 @@ Spustí simuláciu na základe existujúcej konfigurácie.
     "east": 15,
     "west": 15
   },
-  "vehicle_speed": 10
 }
 ```
 
@@ -289,7 +288,6 @@ Spustí simuláciu na základe existujúcej konfigurácie.
 - `config_id` musí existovať,
 - `simulation_duration > 0` a maximálne 3600,
 - `traffic_intensity` v rozsahu 0 až 100,
-- `vehicle_speed` v rozsahu 5 až 20.
 
 ### Response
 ```json
@@ -308,7 +306,6 @@ Spustí simuláciu na základe existujúcej konfigurácie.
       "east": 15,
       "west": 15
     },
-    "vehicle_speed": 10
   },
   "started_at": "2025-11-08T10:35:00Z"
 }
@@ -366,7 +363,6 @@ Vráti detail simulácie.
     "east": 15,
     "west": 15
   },
-  "vehicle_speed": 10,
   "started_at": "2025-11-08T10:35:00Z"
 }
 ```
