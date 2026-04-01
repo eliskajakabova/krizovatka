@@ -7,9 +7,8 @@ Tento dokument popisuje návrh dátového modelu pre projekt **Simulátor križo
 * aké entity sa budú ukladať do databázy,
 * aké polia budú obsahovať,
 * aké väzby existujú medzi entitami,
-* ako dátový model podporuje REST API, simulácie a históriu behov.
 
-Dátový model nadväzuje na business analýzu, návrh API, stavový automat aj návrh UI a predstavuje stabilný základ pre backend implementáciu.
+Dátový model slúži na ukladanie konfigurácií a výsledkov simulácií.
 
 ---
 
@@ -66,18 +65,18 @@ Tabuľka `configurations` uchováva konfigurácie časovania semaforov, ktoré p
 
 ### 5.2 Polia
 
-| Pole              | Typ          | Povinné | Popis                      |
-| ----------------- | ------------ | ------- | -------------------------- |
-| id                | VARCHAR(50)  | áno     | primárny kľúč              |
-| name              | VARCHAR(200) | áno     | názov konfigurácie         |
-| description       | TEXT         | nie     | popis konfigurácie         |
-| cycle_duration    | INTEGER      | áno     | dĺžka cyklu                |
-| signal_timings    | JSON         | áno     | časovanie 12 semaforov     |
-| is_preset         | BOOLEAN      | áno     | prednastavená konfigurácia |
-| cycle_utilization | FLOAT        | nie     | efektivita cyklu           |
-| times_simulated   | INTEGER      | nie     | počet použití              |
-| created_at        | TIMESTAMP    | áno     | dátum vytvorenia           |
-| updated_at        | TIMESTAMP    | áno     | dátum úpravy               |
+| Pole              | Typ          | Popis                      |
+| ----------------- | ------------ | -------------------------- |
+| id                | VARCHAR(50)  | primárny kľúč              |
+| name              | VARCHAR(200) | názov konfigurácie         |
+| description       | TEXT         | popis konfigurácie         |
+| cycle_duration    | INTEGER      | dĺžka cyklu                |
+| signal_timings    | JSON         | časovanie 12 semaforov     |
+| is_preset         | BOOLEAN      | prednastavená konfigurácia |
+| cycle_utilization | FLOAT        | efektivita cyklu           |
+| times_simulated   | INTEGER      | počet použití              |
+| created_at        | TIMESTAMP    | dátum vytvorenia           |
+| updated_at        | TIMESTAMP    | dátum úpravy               |
 
 ### 5.3 Poznámky
 
@@ -106,25 +105,24 @@ Tabuľka `simulations` uchováva jednotlivé behy simulácie nad konkrétnou kon
 
 ### 6.2 Polia
 
-| Pole                     | Typ         | Povinné | Popis                  |
-| ------------------------ | ----------- | ------- | ---------------------- |
-| id                       | VARCHAR(50) | áno     | primárny kľúč          |
-| config_id                | VARCHAR(50) | áno     | FK na configurations   |
-| status                   | VARCHAR(20) | áno     | stav simulácie         |
-| simulation_duration      | INTEGER     | áno     | trvanie simulácie      |
-| traffic_intensity        | JSON        | áno     | intenzita dopravy      |
-| vehicle_speed            | FLOAT       | áno     | rýchlosť vozidiel      |
-| started_at               | TIMESTAMP   | áno     | začiatok simulácie     |
-| completed_at             | TIMESTAMP   | nie     | koniec simulácie       |
-| elapsed_time             | FLOAT       | nie     | reálny čas             |
-| total_vehicles_generated | INTEGER     | nie     | počet áut              |
-| total_vehicles_passed    | INTEGER     | nie     | prejdené autá          |
-| total_vehicles_waiting   | INTEGER     | nie     | čakajúce autá          |
-| average_wait_time        | FLOAT       | nie     | priemerná čakacia doba |
-| max_wait_time            | FLOAT       | nie     | maximálna čakacia doba |
-| average_queue_length     | FLOAT       | nie     | priemerná dĺžka radu   |
-| max_queue_length         | INTEGER     | nie     | maximálna dĺžka radu   |
-| intersection_utilization | FLOAT       | nie     | využitie križovatky    |
+| Pole                     | Typ         | Popis                  |
+| ------------------------ | ----------- | ---------------------- |
+| id                       | VARCHAR(50) | primárny kľúč          |
+| config_id                | VARCHAR(50) | FK na configurations   |
+| status                   | VARCHAR(20) | stav simulácie         |
+| simulation_duration      | INTEGER     | trvanie simulácie      |
+| traffic_intensity        | JSON        | intenzita dopravy      |
+| started_at               | TIMESTAMP   | začiatok simulácie     |
+| completed_at             | TIMESTAMP   | koniec simulácie       |
+| elapsed_time             | FLOAT       | reálny čas             |
+| total_vehicles_generated | INTEGER     | počet áut              |
+| total_vehicles_passed    | INTEGER     | prejdené autá          |
+| total_vehicles_waiting   | INTEGER     | čakajúce autá          |
+| average_wait_time        | FLOAT       | priemerná čakacia doba |
+| max_wait_time            | FLOAT       | maximálna čakacia doba |
+| average_queue_length     | FLOAT       | priemerná dĺžka radu   |
+| max_queue_length         | INTEGER     | maximálna dĺžka radu   |
+| intersection_utilization | FLOAT       | využitie križovatky    |
 
 ### 6.3 Povolené hodnoty status
 
