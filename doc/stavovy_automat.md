@@ -255,18 +255,11 @@ stateDiagram-v2
 ## 12. Správanie vozidla voči stavovému automatu
 
 Každé vozidlo možno modelovať zjednodušene týmito stavmi:
-- `generated`
-- `approaching`
-- `waiting`
-- `crossing`
-- `passed`
+- `waiting` - vozidlo stojí pred križovatkou a čaká na zelený signál
+- `crossing` - vozidlo prechádza križovatkou.
 
 ### Prechod vozidla
-1. Vozidlo je vygenerované.
-2. Prichádza ku križovatke.
-3. Ak má jeho semafor červenú, čaká.
-4. Ak má zelenú a cesta je voľná, prechádza.
-5. Po prejdení opúšťa simuláciu.
+waiting → crossing
 
 ---
 ## 13. Záver
