@@ -6,7 +6,6 @@ Tento dokument definuje návrh API pre projekt **Simulátor križovatky so semaf
 - presne určiť endpointy,
 - uzamknúť formát request/response JSON,
 - oddeliť správu konfigurácií od správy simulácií,
-- pripraviť podklad pre implementáciu backendu aj frontendu.
 
 ---
 
@@ -63,23 +62,12 @@ Tento dokument definuje návrh API pre projekt **Simulátor križovatky so semaf
 }
 ```
 
-## 5.3 Position
+## 5.3 VehicleState
 ```json
-{
-  "x": 0,
-  "y": -5
-}
-```
-
-## 5.4 VehicleState
-```json
-{
-  "id": "v_001",
-  "from": "north",
-  "to": "south",
-  "position": { "x": 0, "y": -5 },
-  "state": "approaching"
-}
+{ "id": "v_001",
+ "from": "north",
+ "state": "waiting",
+ "wait_time": 12.3 }
 ```
 
 ---
