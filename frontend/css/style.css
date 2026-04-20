@@ -1,0 +1,100 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f7f6;
+}
+
+.app-container {
+    display: flex;
+    gap: 20px;
+}
+
+#panel {
+    width: 320px;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+#visualization-container {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column; /* Štatistiky pôjdu pod Canvas */
+    gap: 20px;
+}
+
+#canvas-wrapper {
+    display: flex;
+    justify-content: center;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+canvas {
+    background-color: #e0e0e0;
+    border-radius: 4px;
+}
+
+#stats-panel {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.stat-item {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.intensity-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+}
+
+.form-group { margin-bottom: 15px; }
+label { display: block; margin-bottom: 5px; font-weight: bold; }
+input, select { width: 100%; padding: 8px; box-sizing: border-box; }
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-primary { background-color: #0d6efd; color: white; }
+.btn-danger { background-color: #dc3545; color: white; }
+.btn-secondary { background-color: #6c757d; color: white; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+#statusBox {
+    margin-top: 15px;
+    padding: 10px;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+.connected { background-color: #d4edda; color: #155724; }
+.disconnected { background-color: #f8d7da; color: #721c24; }

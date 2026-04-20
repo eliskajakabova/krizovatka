@@ -1,5 +1,6 @@
 import threading
 import time
+import random 
 
 from app.engine.state_machine import get_signal_states
 from app.engine.vehicle_logic import create_vehicle, update_waiting_vehicles
@@ -87,38 +88,45 @@ class IntersectionSimulation:
             self.cycle_duration,
         )
 
+        # 1. OPRAVA: Najprv spracujeme prejazdy na zelenú pre existujúce autá
+        self._process_green_signals(signals)
+
+        # 2. Až potom vygenerujeme nové autá
         new_vehicles = self.traffic_generator.generate(self.traffic_intensity)
 
         for vehicle in new_vehicles:
             vehicle_obj = create_vehicle(vehicle["from"])
+            # PRIDANÉ: Backend pridelí autu pruh (S=rovno, L=doľava, R=doprava)
+            vehicle_obj["lane"] = random.choice(["S", "L", "R"]) 
             self.queues[vehicle["from"]].append(vehicle_obj)
             self.statistics["total_vehicles_generated"] += 1
 
+        # 3. Aktualizujeme čakacie časy a štatistiky
         update_waiting_vehicles(self.queues, self.tick_seconds)
-        self._process_green_signals(signals)
         self._update_statistics()
 
+        # 4. Odošleme stav na frontend
         self.ws_manager.broadcast_from_thread(
             self.simulation_id,
             self.build_state_message(signals, cycle_time),
         )
 
     def _process_green_signals(self, signals: dict[str, str]) -> None:
-        direction_map = {
-            "north": ["N_S", "N_L", "N_R"],
-            "south": ["S_S", "S_L", "S_R"],
-            "east": ["E_S", "E_L", "E_R"],
-            "west": ["W_S", "W_L", "W_R"],
-        }
-
-        for direction, signal_ids in direction_map.items():
-            has_green = any(signals.get(
-                signal_id) == "green" for signal_id in signal_ids)
-
-            if has_green and self.queues[direction]:
-                vehicle = self.queues[direction].pop(0)
-                vehicle["state"] = "crossing"
-                self.statistics["total_vehicles_passed"] += 1
+        # Pre každý smer (north, south, east, west)
+        for direction in self.queues:
+            if self.queues[direction]:
+                # Pozrieme sa na PRVÉ auto v rade
+                first_vehicle = self.queues[direction][0]
+                lane = first_vehicle["lane"]  # "S", "L" alebo "R"
+                
+                # Vytvoríme ID semaforu, napr. "N_S" pre sever rovno
+                signal_id = f"{direction[0].upper()}_{lane}"
+                
+                # Auto vypustíme, len ak má zelenú JEHO semafor
+                if signals.get(signal_id) == "green":
+                    vehicle = self.queues[direction].pop(0)
+                    vehicle["state"] = "crossing"
+                    self.statistics["total_vehicles_passed"] += 1
 
     def _update_statistics(self) -> None:
         queue_lengths = [len(queue) for queue in self.queues.values()]

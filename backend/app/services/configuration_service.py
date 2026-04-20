@@ -13,21 +13,22 @@ class ConfigurationService:
         config_id = "conf_default01"
 
         signal_timings = {
-            "N_S": {"start": 0, "duration": 50},
-            "N_L": {"start": 50, "duration": 10},
-            "N_R": {"start": 0, "duration": 50},
-            "S_S": {"start": 0, "duration": 50},
-            "S_L": {"start": 50, "duration": 10},
-            "S_R": {"start": 0, "duration": 50},
-            "E_S": {"start": 60, "duration": 50},
-            "E_L": {"start": 110, "duration": 10},
-            "E_R": {"start": 60, "duration": 50},
-            "W_S": {"start": 60, "duration": 50},
-            "W_L": {"start": 110, "duration": 10},
-            "W_R": {"start": 60, "duration": 50},
+            "N_S": {"start": 0, "duration": 25},
+            "N_L": {"start": 25, "duration": 5},
+            "N_R": {"start": 0, "duration": 25},
+            "S_S": {"start": 0, "duration": 25},
+            "S_L": {"start": 25, "duration": 5},
+            "S_R": {"start": 0, "duration": 25},
+            "E_S": {"start": 30, "duration": 25},
+            "E_L": {"start": 55, "duration": 5},
+            "E_R": {"start": 30, "duration": 25},
+            "W_S": {"start": 30, "duration": 25},
+            "W_L": {"start": 55, "duration": 5},
+            "W_R": {"start": 30, "duration": 25},
         }
 
-        validation = self.validation_service.validate(120, signal_timings)
+        # A NA DOLE SKONTROLUJTE, ČI SA VALIDAČNÁ FUNKCIA VOLÁ S ČÍSLOM 60!
+        validation = self.validation_service.validate(60, signal_timings)
 
         self._storage[config_id] = {
             "config_id": config_id,
