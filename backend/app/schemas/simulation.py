@@ -49,3 +49,17 @@ class SimulationStatsResponse(BaseModel):
     simulation_id: str
     status: str
     statistics: Dict[str, Any]
+
+
+class SimulationListItem(BaseModel):
+    simulation_id: str
+    config_id: str
+    config_name: str | None = None
+    status: str
+    started_at: str | None = None
+    elapsed_time: float | None = None
+    current_statistics: Dict[str, Any] | None = None
+
+
+class SimulationListResponse(BaseModel):
+    simulations: list[SimulationListItem]
