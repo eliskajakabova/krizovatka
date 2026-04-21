@@ -74,7 +74,7 @@ async def websocket_endpoint(websocket: WebSocket, simulation_id: str):
         )
 
         while True:
-            await websocket.receive_text()
+            await asyncio.sleep(1)
 
     except WebSocketDisconnect:
         ws_manager.disconnect(simulation_id, websocket)
