@@ -1,4 +1,7 @@
+from datetime import UTC, datetime
+
 from fastapi import HTTPException
+
 from app.services.validation_service import ValidationService
 from app.utils.ids import generate_config_id
 
@@ -8,6 +11,9 @@ class ConfigurationService:
         self.validation_service = ValidationService()
         self._storage: dict[str, dict] = {}
         self._seed_default_configuration()
+
+    def _now_iso(self) -> str:
+        return datetime.now(UTC).isoformat()
 
     def _seed_default_configuration(self) -> None:
         config_id = "conf_default01"
@@ -28,6 +34,7 @@ class ConfigurationService:
         }
 
         validation = self.validation_service.validate(120, signal_timings)
+        now = self._now_iso()
 
         self._storage[config_id] = {
             "config_id": config_id,
@@ -37,6 +44,9 @@ class ConfigurationService:
             "signal_timings": signal_timings,
             "is_preset": True,
             "cycle_utilization": validation["cycle_utilization"],
+            "created_at": now,
+            "updated_at": now,
+            "times_simulated": 0,
         }
 
     def create_configuration(self, payload) -> dict:
@@ -45,6 +55,7 @@ class ConfigurationService:
             raise HTTPException(status_code=409, detail=validation)
 
         config_id = generate_config_id()
+        now = self._now_iso()
 
         config = {
             "config_id": config_id,
@@ -52,9 +63,13 @@ class ConfigurationService:
             "description": payload.description,
             "cycle_duration": payload.cycle_duration,
             "signal_timings": {
-                k: v.model_dump() for k, v in payload.signal_timings.items()},
+                k: v.model_dump() for k, v in payload.signal_timings.items()
+            },
             "is_preset": False,
             "cycle_utilization": validation["cycle_utilization"],
+            "created_at": now,
+            "updated_at": now,
+            "times_simulated": 0,
         }
 
         self._storage[config_id] = config
@@ -79,7 +94,8 @@ class ConfigurationService:
         if config.get("is_preset"):
             raise HTTPException(
                 status_code=409,
-                  detail="Preset configuration cannot be modified")
+                detail="Preset configuration cannot be modified",
+            )
 
         candidate = {**config, **payload.model_dump(exclude_none=True)}
 
@@ -98,6 +114,7 @@ class ConfigurationService:
             raise HTTPException(status_code=409, detail=validation)
 
         candidate["cycle_utilization"] = validation["cycle_utilization"]
+        candidate["updated_at"] = self._now_iso()
         self._storage[config_id] = candidate
         return candidate
 
@@ -107,7 +124,8 @@ class ConfigurationService:
         if config and config.get("is_preset"):
             raise HTTPException(
                 status_code=409,
-                detail="Preset configuration cannot be deleted")
+                detail="Preset configuration cannot be deleted",
+            )
 
         return self._storage.pop(config_id, None)
 
@@ -118,4 +136,14 @@ class ConfigurationService:
         }
 
         return self.validation_service.validate(
-            payload.cycle_duration, signal_timings)
+            payload.cycle_duration,
+            signal_timings,
+        )
+
+    def increment_times_simulated(self, config_id: str) -> None:
+        config = self._storage.get(config_id)
+        if config is None:
+            return
+
+        config["times_simulated"] = config.get("times_simulated", 0) + 1
+        config["updated_at"] = self._now_iso()

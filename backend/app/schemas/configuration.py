@@ -32,6 +32,9 @@ class ConfigurationResponse(BaseModel):
     signal_timings: Dict[str, SignalTiming]
     is_preset: bool = False
     cycle_utilization: float | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    times_simulated: int = 0
 
 
 class ConflictDetail(BaseModel):
