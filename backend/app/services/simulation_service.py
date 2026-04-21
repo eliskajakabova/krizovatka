@@ -22,6 +22,8 @@ class SimulationService:
             raise HTTPException(
                 status_code=404, detail="Configuration not found")
 
+        self.configuration_service.increment_times_simulated(payload.config_id)
+
         simulation_id = generate_simulation_id()
 
         simulation = IntersectionSimulation(
