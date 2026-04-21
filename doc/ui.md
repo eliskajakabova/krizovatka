@@ -111,7 +111,6 @@ Používateľ nastaví parametre premávky pred spustením simulácie.
   - south,
   - east,
   - west,
-- rýchlosť vozidiel,
 - trvanie simulácie,
 - tlačidlo **Spustiť simuláciu**.
 
