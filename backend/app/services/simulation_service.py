@@ -1,4 +1,5 @@
 import threading
+
 from fastapi import HTTPException
 
 from app.config import SIMULATION_TICK_SECONDS
@@ -42,8 +43,15 @@ class SimulationService:
         return {
             "simulation_id": simulation_id,
             "config_id": payload.config_id,
+            "config_name": config["name"],
             "websocket_url": f"/ws/{simulation_id}",
             "status": "running",
+            "parameters": {
+                "cycle_duration": config["cycle_duration"],
+                "simulation_duration": payload.simulation_duration,
+                "traffic_intensity": payload.traffic_intensity.model_dump(),
+            },
+            "started_at": simulation.started_at,
         }
 
     def stop_simulation(self, simulation_id: str) -> dict | None:
@@ -76,6 +84,9 @@ class SimulationService:
             "status": simulation.status,
             "simulation_duration": simulation.simulation_duration,
             "traffic_intensity": simulation.traffic_intensity,
+            "started_at": simulation.started_at,
+            "completed_at": simulation.completed_at,
+            "elapsed_time": round(simulation.current_time, 2),
         }
 
     def get_simulation_stats(self, simulation_id: str) -> dict | None:
@@ -90,8 +101,10 @@ class SimulationService:
         }
 
     def list_simulations(
-            self, status:
-            str | None = None, config_id: str | None = None) -> dict:
+        self,
+        status: str | None = None,
+        config_id: str | None = None,
+    ) -> dict:
         with self._lock:
             sims = list(self.active_simulations.values())
 
@@ -102,11 +115,13 @@ class SimulationService:
             if config_id and sim.config_id != config_id:
                 continue
 
-            result.append({
-                "simulation_id": sim.simulation_id,
-                "config_id": sim.config_id,
-                "status": sim.status,
-            })
+            result.append(
+                {
+                    "simulation_id": sim.simulation_id,
+                    "config_id": sim.config_id,
+                    "status": sim.status,
+                }
+            )
 
         return {"simulations": result}
 

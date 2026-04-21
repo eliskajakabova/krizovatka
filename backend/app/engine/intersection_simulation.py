@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import threading
 import time
 
@@ -35,6 +36,9 @@ class IntersectionSimulation:
         self.thread: threading.Thread | None = None
         self.stop_event = threading.Event()
 
+        self.started_at = datetime.now(UTC).isoformat()
+        self.completed_at: str | None = None
+
         self.queues: dict[str, list[dict]] = {
             "north": [],
             "south": [],
@@ -53,6 +57,8 @@ class IntersectionSimulation:
     def stop(self) -> None:
         self.stop_event.set()
         self.status = "stopped"
+        if self.completed_at is None:
+            self.completed_at = datetime.now(UTC).isoformat()
 
     def join(self, timeout: float | None = None) -> None:
         if self.thread and self.thread.is_alive():
@@ -70,6 +76,9 @@ class IntersectionSimulation:
 
             if self.status != "stopped":
                 self.status = "completed"
+
+            if self.completed_at is None:
+                self.completed_at = datetime.now(UTC).isoformat()
 
             self.ws_manager.broadcast_from_thread(
                 self.simulation_id,
@@ -112,8 +121,9 @@ class IntersectionSimulation:
         }
 
         for direction, signal_ids in direction_map.items():
-            has_green = any(signals.get(
-                signal_id) == "green" for signal_id in signal_ids)
+            has_green = any(
+                signals.get(signal_id) == "green" for signal_id in signal_ids
+            )
 
             if has_green and self.queues[direction]:
                 vehicle = self.queues[direction].pop(0)
@@ -132,7 +142,9 @@ class IntersectionSimulation:
 
         if queue_lengths:
             self.statistics["average_queue_length"] = round(
-                sum(queue_lengths) / len(queue_lengths), 2)
+                sum(queue_lengths) / len(queue_lengths),
+                2,
+            )
 
         all_wait_times = []
         for queue in self.queues.values():
@@ -140,15 +152,17 @@ class IntersectionSimulation:
                 all_wait_times.append(vehicle["wait_time"])
 
         if all_wait_times:
-            self.statistics[
-                "average_wait_time"] = round(
-                    sum(all_wait_times) / len(all_wait_times), 2)
+            self.statistics["average_wait_time"] = round(
+                sum(all_wait_times) / len(all_wait_times),
+                2,
+            )
             self.statistics["max_wait_time"] = round(max(all_wait_times), 2)
 
         if self.statistics["total_vehicles_generated"] > 0:
-            util = self.statistics[
-                "total_vehicles_passed"] / self.statistics[
-                    "total_vehicles_generated"]
+            util = (
+                self.statistics["total_vehicles_passed"]
+                / self.statistics["total_vehicles_generated"]
+            )
             self.statistics["intersection_utilization"] = round(util, 3)
 
     def build_setup_message(self) -> dict:
@@ -160,8 +174,9 @@ class IntersectionSimulation:
             "signal_timings": self.signal_timings,
         }
 
-    def build_state_message(
-            self, signals: dict[str, str], cycle_time: float) -> dict:
+    def build_state_message(self,
+                            signals: dict[str, str],
+                            cycle_time: float) -> dict:
         vehicles = []
         for queue in self.queues.values():
             vehicles.extend(queue)
