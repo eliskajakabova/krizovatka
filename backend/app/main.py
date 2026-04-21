@@ -1,10 +1,13 @@
 import asyncio
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.configurations import router as configurations_router
 from app.api.simulations import router as simulations_router
 from app.config import API_TITLE, API_VERSION, INTERSECTION_PREFIX
+from app.repositories.configuration_repository import ConfigurationRepository
+from app.repositories.simulation_repository import SimulationRepository
 from app.services.configuration_service import ConfigurationService
 from app.services.simulation_service import SimulationService
 from app.websocket.manager import WebSocketManager
@@ -20,10 +23,16 @@ app.add_middleware(
 )
 
 app.state.ws_manager = WebSocketManager()
-app.state.configuration_service = ConfigurationService()
+app.state.configuration_repository = ConfigurationRepository()
+app.state.simulation_repository = SimulationRepository()
+
+app.state.configuration_service = ConfigurationService(
+    repository=app.state.configuration_repository,
+)
 app.state.simulation_service = SimulationService(
     ws_manager=app.state.ws_manager,
     configuration_service=app.state.configuration_service,
+    repository=app.state.simulation_repository,
 )
 
 app.include_router(configurations_router, prefix=INTERSECTION_PREFIX)

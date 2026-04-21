@@ -4,15 +4,20 @@ from fastapi import HTTPException
 
 from app.config import SIMULATION_TICK_SECONDS
 from app.engine.intersection_simulation import IntersectionSimulation
+from app.repositories.simulation_repository import SimulationRepository
 from app.utils.ids import generate_simulation_id
 
 
 class SimulationService:
-    def __init__(self, ws_manager, configuration_service) -> None:
+    def __init__(
+        self,
+        ws_manager,
+        configuration_service,
+        repository: SimulationRepository,
+    ) -> None:
         self.ws_manager = ws_manager
         self.configuration_service = configuration_service
-        self.active_simulations: dict[str, IntersectionSimulation] = {}
-        self.finished_simulations: dict[str, dict] = {}
+        self.repository = repository
         self._lock = threading.Lock()
 
     def start_simulation(self, payload) -> dict:
@@ -39,7 +44,7 @@ class SimulationService:
         )
 
         with self._lock:
-            self.active_simulations[simulation_id] = simulation
+            self.repository.save_active(simulation)
 
         simulation.start()
 
@@ -84,11 +89,11 @@ class SimulationService:
     def get_simulation(
             self, simulation_id: str) -> IntersectionSimulation | None:
         with self._lock:
-            return self.active_simulations.get(simulation_id)
+            return self.repository.get_active(simulation_id)
 
     def _get_finished_simulation(self, simulation_id: str) -> dict | None:
         with self._lock:
-            return self.finished_simulations.get(simulation_id)
+            return self.repository.get_finished(simulation_id)
 
     def get_simulation_response(self, simulation_id: str) -> dict | None:
         simulation = self.get_simulation(simulation_id)
@@ -151,8 +156,8 @@ class SimulationService:
         config_id: str | None = None,
     ) -> dict:
         with self._lock:
-            active = list(self.active_simulations.values())
-            finished = list(self.finished_simulations.values())
+            active = self.repository.list_active()
+            finished = self.repository.list_finished()
 
         result = []
 
@@ -227,12 +232,11 @@ class SimulationService:
 
     def remove_simulation(self, simulation_id: str) -> None:
         with self._lock:
-            simulation = self.active_simulations.get(simulation_id)
+            simulation = self.repository.get_active(simulation_id)
             if simulation is None:
                 return
 
-            self.finished_simulations[
-                simulation_id] = self._build_finished_snapshot(
-                simulation
+            self.repository.save_finished(
+                self._build_finished_snapshot(simulation)
             )
-            self.active_simulations.pop(simulation_id, None)
+            self.repository.remove_active(simulation_id)

@@ -2,20 +2,25 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 
+from app.repositories.configuration_repository import ConfigurationRepository
 from app.services.validation_service import ValidationService
 from app.utils.ids import generate_config_id
 
 
 class ConfigurationService:
-    def __init__(self) -> None:
+    def __init__(self, repository: ConfigurationRepository) -> None:
         self.validation_service = ValidationService()
-        self._storage: dict[str, dict] = {}
+        self.repository = repository
         self._seed_default_configuration()
 
     def _now_iso(self) -> str:
         return datetime.now(UTC).isoformat()
 
     def _seed_default_configuration(self) -> None:
+        existing = self.repository.get_by_id("conf_default01")
+        if existing is not None:
+            return
+
         config_id = "conf_default01"
 
         signal_timings = {
@@ -36,18 +41,20 @@ class ConfigurationService:
         validation = self.validation_service.validate(120, signal_timings)
         now = self._now_iso()
 
-        self._storage[config_id] = {
-            "config_id": config_id,
-            "name": "Predvolená konfigurácia",
-            "description": "Základná ukážková konfigurácia",
-            "cycle_duration": 120,
-            "signal_timings": signal_timings,
-            "is_preset": True,
-            "cycle_utilization": validation["cycle_utilization"],
-            "created_at": now,
-            "updated_at": now,
-            "times_simulated": 0,
-        }
+        self.repository.save(
+            {
+                "config_id": config_id,
+                "name": "Predvolená konfigurácia",
+                "description": "Základná ukážková konfigurácia",
+                "cycle_duration": 120,
+                "signal_timings": signal_timings,
+                "is_preset": True,
+                "cycle_utilization": validation["cycle_utilization"],
+                "created_at": now,
+                "updated_at": now,
+                "times_simulated": 0,
+            }
+        )
 
     def create_configuration(self, payload) -> dict:
         validation = self.validate_configuration(payload)
@@ -72,11 +79,10 @@ class ConfigurationService:
             "times_simulated": 0,
         }
 
-        self._storage[config_id] = config
-        return config
+        return self.repository.save(config)
 
     def list_configurations(self, include_presets: bool = True) -> dict:
-        values = list(self._storage.values())
+        values = self.repository.list_all()
 
         if not include_presets:
             values = [item for item in values if not item["is_preset"]]
@@ -84,10 +90,10 @@ class ConfigurationService:
         return {"configurations": values}
 
     def get_configuration(self, config_id: str) -> dict | None:
-        return self._storage.get(config_id)
+        return self.repository.get_by_id(config_id)
 
     def update_configuration(self, config_id: str, payload) -> dict | None:
-        config = self._storage.get(config_id)
+        config = self.repository.get_by_id(config_id)
         if config is None:
             return None
 
@@ -115,11 +121,11 @@ class ConfigurationService:
 
         candidate["cycle_utilization"] = validation["cycle_utilization"]
         candidate["updated_at"] = self._now_iso()
-        self._storage[config_id] = candidate
-        return candidate
+
+        return self.repository.update(config_id, candidate)
 
     def delete_configuration(self, config_id: str) -> dict | None:
-        config = self._storage.get(config_id)
+        config = self.repository.get_by_id(config_id)
 
         if config and config.get("is_preset"):
             raise HTTPException(
@@ -127,7 +133,7 @@ class ConfigurationService:
                 detail="Preset configuration cannot be deleted",
             )
 
-        return self._storage.pop(config_id, None)
+        return self.repository.delete(config_id)
 
     def validate_configuration(self, payload) -> dict:
         signal_timings = {
@@ -141,9 +147,10 @@ class ConfigurationService:
         )
 
     def increment_times_simulated(self, config_id: str) -> None:
-        config = self._storage.get(config_id)
+        config = self.repository.get_by_id(config_id)
         if config is None:
             return
 
         config["times_simulated"] = config.get("times_simulated", 0) + 1
         config["updated_at"] = self._now_iso()
+        self.repository.update(config_id, config)
