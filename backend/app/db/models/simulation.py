@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,10 +21,15 @@ class SimulationModel(Base):
     simulation_duration: Mapped[int] = mapped_column(Integer, nullable=False)
     traffic_intensity: Mapped[dict] = mapped_column(JSON, nullable=False)
 
-    started_at: Mapped[str] = mapped_column(DateTime(timezone=True),
-                                            nullable=False, index=True)
-    completed_at: Mapped[str | None] = mapped_column(DateTime(timezone=True),
-                                                     nullable=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        index=True,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     elapsed_time: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     total_vehicles_generated: Mapped[int | None] = mapped_column(Integer,

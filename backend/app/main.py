@@ -8,8 +8,12 @@ from app.api.simulations import router as simulations_router
 from app.config import API_TITLE, API_VERSION, INTERSECTION_PREFIX
 from app.db.database import Base, engine
 from app.db import models  # noqa: F401
-from app.repositories.configuration_repository import ConfigurationRepository
-from app.repositories.simulation_repository import SimulationRepository
+from app.repositories.sqlite_configuration_repository import (
+    SQLiteConfigurationRepository,
+)
+from app.repositories.sqlite_simulation_repository import (
+    SQLiteSimulationRepository,
+)
 from app.services.configuration_service import ConfigurationService
 from app.services.simulation_service import SimulationService
 from app.websocket.manager import WebSocketManager
@@ -25,8 +29,8 @@ app.add_middleware(
 )
 
 app.state.ws_manager = WebSocketManager()
-app.state.configuration_repository = ConfigurationRepository()
-app.state.simulation_repository = SimulationRepository()
+app.state.configuration_repository = SQLiteConfigurationRepository()
+app.state.simulation_repository = SQLiteSimulationRepository()
 
 app.state.configuration_service = ConfigurationService(
     repository=app.state.configuration_repository,
