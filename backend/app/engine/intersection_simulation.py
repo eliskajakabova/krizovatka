@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 import threading
 import time
 
+from app.config import VEHICLE_CROSSING_SECONDS
 from app.engine.state_machine import get_signal_states
 from app.engine.vehicle_logic import create_vehicle, update_waiting_vehicles
 from app.services.statistics_service import StatisticsService
@@ -45,6 +46,9 @@ class IntersectionSimulation:
             "east": [],
             "west": [],
         }
+
+        # 🔥 NOVÉ
+        self.crossing_vehicles: list[dict] = []
 
         self.statistics = StatisticsService.create_initial_statistics()
         self.traffic_generator = TrafficGenerator()
@@ -90,6 +94,7 @@ class IntersectionSimulation:
 
     def _tick(self) -> None:
         cycle_time = round(self.current_time % self.cycle_duration, 2)
+
         signals = get_signal_states(
             self.signal_timings,
             cycle_time,
@@ -104,6 +109,10 @@ class IntersectionSimulation:
             self.statistics["total_vehicles_generated"] += 1
 
         update_waiting_vehicles(self.queues, self.tick_seconds)
+
+        # 🔥 NOVÉ
+        self._update_crossing_vehicles()
+
         self._process_green_signals(signals)
         self._update_statistics()
 
@@ -128,7 +137,25 @@ class IntersectionSimulation:
             if has_green and self.queues[direction]:
                 vehicle = self.queues[direction].pop(0)
                 vehicle["state"] = "crossing"
+
+                # 🔥 NOVÉ
+                vehicle["crossing_time_left"] = VEHICLE_CROSSING_SECONDS
+                self.crossing_vehicles.append(vehicle)
+
                 self.statistics["total_vehicles_passed"] += 1
+
+    def _update_crossing_vehicles(self) -> None:
+        remaining = []
+
+        for vehicle in self.crossing_vehicles:
+            vehicle["crossing_time_left"] = round(
+                vehicle["crossing_time_left"] - self.tick_seconds, 2
+            )
+
+            if vehicle["crossing_time_left"] > 0:
+                remaining.append(vehicle)
+
+        self.crossing_vehicles = remaining
 
     def _update_statistics(self) -> None:
         queue_lengths = [len(queue) for queue in self.queues.values()]
@@ -174,12 +201,16 @@ class IntersectionSimulation:
             "signal_timings": self.signal_timings,
         }
 
-    def build_state_message(self,
-                            signals: dict[str, str],
-                            cycle_time: float) -> dict:
+    def build_state_message(
+            self, signals: dict[str, str], cycle_time: float) -> dict:
         vehicles = []
+
         for queue in self.queues.values():
             vehicles.extend(queue)
+
+        for vehicle in self.crossing_vehicles:
+            v = {k: v for k, v in vehicle.items() if k != "crossing_time_left"}
+            vehicles.append(v)
 
         return {
             "type": "state",
