@@ -20,10 +20,6 @@ class SimulationService:
         self.repository = repository
         self._lock = threading.Lock()
 
-    # =========================
-    # CORE
-    # =========================
-
     def start_simulation(self, payload) -> dict:
         config = self.configuration_service.get_configuration(
             payload.config_id)
@@ -90,10 +86,6 @@ class SimulationService:
             "final_statistics": simulation.statistics,
         }
 
-    # =========================
-    # GETTERS
-    # =========================
-
     def get_simulation(
             self, simulation_id: str) -> IntersectionSimulation | None:
         with self._lock:
@@ -130,10 +122,6 @@ class SimulationService:
             }
 
         return None
-
-    # =========================
-    # LIST
-    # =========================
 
     def _build_summary_statistics(self, statistics: dict) -> dict:
         return {
@@ -207,10 +195,6 @@ class SimulationService:
         )
 
         return {"simulations": result}
-
-    # =========================
-    # CLEANUP
-    # =========================
 
     def remove_simulation(self, simulation_id: str) -> None:
         with self._lock:

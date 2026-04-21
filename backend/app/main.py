@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.configurations import router as configurations_router
 from app.api.simulations import router as simulations_router
 from app.config import API_TITLE, API_VERSION, INTERSECTION_PREFIX
+from app.db.database import Base, engine
+from app.db import models  # noqa: F401
 from app.repositories.configuration_repository import ConfigurationRepository
 from app.repositories.simulation_repository import SimulationRepository
 from app.services.configuration_service import ConfigurationService
@@ -42,6 +44,7 @@ app.include_router(simulations_router, prefix=INTERSECTION_PREFIX)
 @app.on_event("startup")
 async def on_startup() -> None:
     app.state.ws_manager.set_loop(asyncio.get_running_loop())
+    Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")
