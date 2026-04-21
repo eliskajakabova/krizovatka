@@ -15,4 +15,6 @@ def update_waiting_vehicles(queues: dict[str, list[dict]],
     for queue in queues.values():
         for vehicle in queue:
             if vehicle["state"] == "waiting":
-                vehicle["wait_time"] += tick_seconds
+                vehicle[
+                    "wait_time"] = round(vehicle["wait_time"] +
+                                         tick_seconds, 2)
