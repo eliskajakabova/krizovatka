@@ -1,7 +1,7 @@
 API_TITLE = "Intersection Simulation API"
 API_VERSION = "1.0.0"
 
-API_PREFIX = "/api/v1"
+API_PREFIX = "/api"
 INTERSECTION_PREFIX = f"{API_PREFIX}/intersection"
 
 SIMULATION_TICK_SECONDS = 0.1

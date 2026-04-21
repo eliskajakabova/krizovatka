@@ -40,6 +40,16 @@ def root():
     return {"message": "Backend bezi 🚀"}
 
 
+@app.get("/api/info")
+def api_info() -> dict:
+    return {
+        "name": API_TITLE,
+        "version": API_VERSION,
+        "api_prefix": INTERSECTION_PREFIX,
+        "websocket_pattern": "/ws/{simulation_id}",
+    }
+
+
 @app.websocket("/ws/{simulation_id}")
 async def websocket_endpoint(websocket: WebSocket, simulation_id: str):
     ws_manager = app.state.ws_manager
