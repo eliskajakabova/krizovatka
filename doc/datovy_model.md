@@ -235,7 +235,6 @@ CREATE TABLE simulations (
   status VARCHAR(20) NOT NULL,
   simulation_duration INTEGER NOT NULL,
   traffic_intensity JSON NOT NULL,
-  vehicle_speed FLOAT NOT NULL,
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   completed_at TIMESTAMP,
   elapsed_time FLOAT,
