@@ -47,7 +47,6 @@ class IntersectionSimulation:
             "west": [],
         }
 
-        # 🔥 NOVÉ
         self.crossing_vehicles: list[dict] = []
 
         self.statistics = StatisticsService.create_initial_statistics()
@@ -110,7 +109,6 @@ class IntersectionSimulation:
 
         update_waiting_vehicles(self.queues, self.tick_seconds)
 
-        # 🔥 NOVÉ
         self._update_crossing_vehicles()
 
         self._process_green_signals(signals)
@@ -232,4 +230,36 @@ class IntersectionSimulation:
             "type": "completed",
             "total_time": round(self.current_time, 2),
             "final_statistics": self.statistics,
+        }
+
+    def to_response_dict(self) -> dict:
+        return {
+            "simulation_id": self.simulation_id,
+            "config_id": self.config_id,
+            "status": self.status,
+            "simulation_duration": self.simulation_duration,
+            "traffic_intensity": self.traffic_intensity,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "elapsed_time": round(self.current_time, 2),
+        }
+
+    def to_stats_dict(self) -> dict:
+        return {
+            "simulation_id": self.simulation_id,
+            "status": self.status,
+            "statistics": self.statistics,
+        }
+
+    def to_finished_snapshot(self) -> dict:
+        return {
+            "simulation_id": self.simulation_id,
+            "config_id": self.config_id,
+            "status": self.status,
+            "simulation_duration": self.simulation_duration,
+            "traffic_intensity": self.traffic_intensity,
+            "started_at": self.started_at,
+            "completed_at": self.completed_at,
+            "elapsed_time": round(self.current_time, 2),
+            "statistics": self.statistics.copy(),
         }

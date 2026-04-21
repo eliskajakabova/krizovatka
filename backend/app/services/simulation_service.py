@@ -20,6 +20,10 @@ class SimulationService:
         self.repository = repository
         self._lock = threading.Lock()
 
+    # =========================
+    # CORE
+    # =========================
+
     def start_simulation(self, payload) -> dict:
         config = self.configuration_service.get_configuration(
             payload.config_id)
@@ -86,6 +90,10 @@ class SimulationService:
             "final_statistics": simulation.statistics,
         }
 
+    # =========================
+    # GETTERS
+    # =========================
+
     def get_simulation(
             self, simulation_id: str) -> IntersectionSimulation | None:
         with self._lock:
@@ -97,41 +105,21 @@ class SimulationService:
 
     def get_simulation_response(self, simulation_id: str) -> dict | None:
         simulation = self.get_simulation(simulation_id)
+
         if simulation is not None:
-            return {
-                "simulation_id": simulation.simulation_id,
-                "config_id": simulation.config_id,
-                "status": simulation.status,
-                "simulation_duration": simulation.simulation_duration,
-                "traffic_intensity": simulation.traffic_intensity,
-                "started_at": simulation.started_at,
-                "completed_at": simulation.completed_at,
-                "elapsed_time": round(simulation.current_time, 2),
-            }
+            return simulation.to_response_dict()
 
         finished = self._get_finished_simulation(simulation_id)
         if finished is not None:
-            return {
-                "simulation_id": finished["simulation_id"],
-                "config_id": finished["config_id"],
-                "status": finished["status"],
-                "simulation_duration": finished["simulation_duration"],
-                "traffic_intensity": finished["traffic_intensity"],
-                "started_at": finished["started_at"],
-                "completed_at": finished["completed_at"],
-                "elapsed_time": finished["elapsed_time"],
-            }
+            return finished
 
         return None
 
     def get_simulation_stats(self, simulation_id: str) -> dict | None:
         simulation = self.get_simulation(simulation_id)
+
         if simulation is not None:
-            return {
-                "simulation_id": simulation.simulation_id,
-                "status": simulation.status,
-                "statistics": simulation.statistics,
-            }
+            return simulation.to_stats_dict()
 
         finished = self._get_finished_simulation(simulation_id)
         if finished is not None:
@@ -142,6 +130,10 @@ class SimulationService:
             }
 
         return None
+
+    # =========================
+    # LIST
+    # =========================
 
     def _build_summary_statistics(self, statistics: dict) -> dict:
         return {
@@ -216,19 +208,9 @@ class SimulationService:
 
         return {"simulations": result}
 
-    def _build_finished_snapshot(
-            self, simulation: IntersectionSimulation) -> dict:
-        return {
-            "simulation_id": simulation.simulation_id,
-            "config_id": simulation.config_id,
-            "status": simulation.status,
-            "simulation_duration": simulation.simulation_duration,
-            "traffic_intensity": simulation.traffic_intensity,
-            "started_at": simulation.started_at,
-            "completed_at": simulation.completed_at,
-            "elapsed_time": round(simulation.current_time, 2),
-            "statistics": simulation.statistics.copy(),
-        }
+    # =========================
+    # CLEANUP
+    # =========================
 
     def remove_simulation(self, simulation_id: str) -> None:
         with self._lock:
@@ -237,6 +219,6 @@ class SimulationService:
                 return
 
             self.repository.save_finished(
-                self._build_finished_snapshot(simulation)
+                simulation.to_finished_snapshot()
             )
             self.repository.remove_active(simulation_id)
