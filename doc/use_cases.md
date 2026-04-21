@@ -114,7 +114,7 @@ Cieľom je aby si používateľ prezrel dostupné konfigurácie.
 ### Postup
 1. Používateľ vyberie konfiguráciu.
 2. Zadá intenzitu dopravy pre jednotlivé smery.
-3. Zadá rýchlosť a trvanie simulácie.
+3. Zadá trvanie simulácie.
 4. Klikne na „Spustiť simuláciu“.
 5. Frontend odošle REST požiadavku.
 6. Backend založí simuláciu.
