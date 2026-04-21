@@ -138,6 +138,13 @@ class SimulationService:
 
         return None
 
+    def _build_summary_statistics(self, statistics: dict) -> dict:
+        return {
+            "total_vehicles_passed": statistics.get(
+                "total_vehicles_passed", 0),
+            "average_wait_time": statistics.get("average_wait_time", 0.0),
+        }
+
     def list_simulations(
         self,
         status: str | None = None,
@@ -167,7 +174,9 @@ class SimulationService:
                     "status": sim.status,
                     "started_at": sim.started_at,
                     "elapsed_time": round(sim.current_time, 2),
-                    "current_statistics": sim.statistics,
+                    "current_statistics": self._build_summary_statistics(
+                        sim.statistics
+                    ),
                 }
             )
 
@@ -189,9 +198,16 @@ class SimulationService:
                     "status": sim["status"],
                     "started_at": sim["started_at"],
                     "elapsed_time": sim["elapsed_time"],
-                    "current_statistics": sim["statistics"],
+                    "current_statistics": self._build_summary_statistics(
+                        sim["statistics"]
+                    ),
                 }
             )
+
+        result.sort(
+            key=lambda item: item["started_at"] or "",
+            reverse=True,
+        )
 
         return {"simulations": result}
 

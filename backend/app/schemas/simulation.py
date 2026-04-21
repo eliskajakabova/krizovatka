@@ -51,6 +51,11 @@ class SimulationStatsResponse(BaseModel):
     statistics: Dict[str, Any]
 
 
+class SimulationSummaryStatistics(BaseModel):
+    total_vehicles_passed: int
+    average_wait_time: float
+
+
 class SimulationListItem(BaseModel):
     simulation_id: str
     config_id: str
@@ -58,7 +63,7 @@ class SimulationListItem(BaseModel):
     status: str
     started_at: str | None = None
     elapsed_time: float | None = None
-    current_statistics: Dict[str, Any] | None = None
+    current_statistics: SimulationSummaryStatistics | None = None
 
 
 class SimulationListResponse(BaseModel):
