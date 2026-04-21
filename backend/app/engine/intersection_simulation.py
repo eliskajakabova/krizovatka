@@ -88,41 +88,46 @@ class IntersectionSimulation:
             self.cycle_duration,
         )
 
-        # 1. OPRAVA: Najprv spracujeme prejazdy na zelenú pre existujúce autá
+        # 1. OPRAVA: Najprv vypustíme autá, čo majú zelenú (aby nezmizli z UI)
         self._process_green_signals(signals)
 
-        # 2. Až potom vygenerujeme nové autá
+        # 2. Až potom generujeme nové
         new_vehicles = self.traffic_generator.generate(self.traffic_intensity)
 
+        import random # Nezabudnite importovať random!
         for vehicle in new_vehicles:
             vehicle_obj = create_vehicle(vehicle["from"])
-            # PRIDANÉ: Backend pridelí autu pruh (S=rovno, L=doľava, R=doprava)
-            vehicle_obj["lane"] = random.choice(["S", "L", "R"]) 
+            # OPRAVA: Pridelíme autu konkrétny pruh
+            vehicle_obj["lane"] = random.choice(["S", "L", "R"])
             self.queues[vehicle["from"]].append(vehicle_obj)
             self.statistics["total_vehicles_generated"] += 1
 
-        # 3. Aktualizujeme čakacie časy a štatistiky
         update_waiting_vehicles(self.queues, self.tick_seconds)
         self._update_statistics()
 
-        # 4. Odošleme stav na frontend
         self.ws_manager.broadcast_from_thread(
             self.simulation_id,
             self.build_state_message(signals, cycle_time),
         )
 
     def _process_green_signals(self, signals: dict[str, str]) -> None:
-        # Pre každý smer (north, south, east, west)
-        for direction in self.queues:
+        direction_map = {
+            "north": "N",
+            "south": "S",
+            "east": "E",
+            "west": "W",
+        }
+
+        for direction, prefix in direction_map.items():
             if self.queues[direction]:
-                # Pozrieme sa na PRVÉ auto v rade
-                first_vehicle = self.queues[direction][0]
-                lane = first_vehicle["lane"]  # "S", "L" alebo "R"
+                # Pozrieme sa na prvé auto a jeho konkrétny pruh
+                first_car = self.queues[direction][0]
+                lane = first_car.get("lane", "S") 
                 
-                # Vytvoríme ID semaforu, napr. "N_S" pre sever rovno
-                signal_id = f"{direction[0].upper()}_{lane}"
+                # Zistíme stav presne jeho semaforu (napr. N_L)
+                signal_id = f"{prefix}_{lane}"
                 
-                # Auto vypustíme, len ak má zelenú JEHO semafor
+                # OPRAVA: Pustíme ho LEN ak má jeho pruh zelenú!
                 if signals.get(signal_id) == "green":
                     vehicle = self.queues[direction].pop(0)
                     vehicle["state"] = "crossing"

@@ -104,12 +104,11 @@ export class IntersectionRenderer {
         if (signals.W_R) drawLight(this.centerX - stopDist, this.centerY + 50, signals.W_R);
     }
 
-    drawVehicles(vehicles) {
+    drawVehicles(vehicles, signals) {
         const carWidth = 14;
         const carLength = 24;
         const stopDist = this.roadWidth / 2 + 20;
 
-        // Definujeme presné vektory pohybu pre radenie (žiadne desatinné odchýlky)
         const vectors = {
             'north': { dx: 0, dy: 1, angle: Math.PI / 2 },
             'south': { dx: 0, dy: -1, angle: -Math.PI / 2 },
@@ -119,10 +118,7 @@ export class IntersectionRenderer {
 
         const getStartPos = (dir, lane) => {
             let x, y, stopX, stopY;
-            let offset = 0;
-            if (lane === 'L') offset = 10;
-            if (lane === 'S') offset = 30;
-            if (lane === 'R') offset = 50;
+            let offset = (lane === 'L') ? 10 : (lane === 'S' ? 30 : 50);
 
             switch(dir) {
                 case 'north':
@@ -148,81 +144,124 @@ export class IntersectionRenderer {
         const currentIds = new Set();
         const waitingCounts = {};
 
-        // 1. Zaregistrujeme autá a vytvoríme exaktné ciele pre rad
+        // 1. Spracovanie vozidiel z backendu s ošetrením nezrovnalostí
         vehicles.forEach(v => {
             currentIds.add(v.id);
             
+            const dir = (v.from || 'north').toLowerCase();
+            const lane = (v.lane || 'S').toUpperCase();
+
             if (!this.visualVehicles.has(v.id)) {
-                const lane = v.lane;                
-                const pos = getStartPos(v.from, lane);
-                const vec = vectors[v.from];
+                const pos = getStartPos(dir, lane);
+                const vec = vectors[dir] || vectors['north'];
 
                 this.visualVehicles.set(v.id, { 
-                    ...v, lane: lane,
+                    ...v, from: dir, lane: lane,
                     x: pos.x, y: pos.y, 
                     stopX: pos.stopX, stopY: pos.stopY,
-                    dx: vec.dx, dy: vec.dy, // Použijeme presný vektor pre dojazd
+                    dx: vec.dx, dy: vec.dy,
                     initialAngle: vec.angle, angle: vec.angle,
                     targetAngle: lane === 'L' ? vec.angle - Math.PI/2 : vec.angle + Math.PI/2,
                     color: `hsl(${Math.random() * 360}, 70%, 50%)`,
-                    distanceCrossed: 0, isTurning: false, hasFinishedTurn: false
+                    distanceCrossed: 0, isTurning: false, hasFinishedTurn: false, angleTraveled: 0,
+                    state: 'waiting'
                 });
             }
 
             const car = this.visualVehicles.get(v.id);
-            car.state = 'waiting';
-
-            const queueKey = `${v.from}_${car.lane}`;
-            waitingCounts[queueKey] = (waitingCounts[queueKey] || 0);
-            const queueOffset = waitingCounts[queueKey] * (carLength + 10);
+            const queueKey = `${car.from}_${car.lane}`;
             
-            // Exaktný výpočet pozície v rade
-            car.targetX = car.stopX - (car.dx * queueOffset);
-            car.targetY = car.stopY - (car.dy * queueOffset);
-            
-            waitingCounts[queueKey]++;
+            // Logika rozostupov v rade (iba pre čakajúce autá)
+            if (car.state === 'waiting') {
+                const queueOffset = (waitingCounts[queueKey] || 0) * (carLength + 15);
+                car.targetX = car.stopX - (car.dx * queueOffset);
+                car.targetY = car.stopY - (car.dy * queueOffset);
+                waitingCounts[queueKey] = (waitingCounts[queueKey] || 0) + 1;
+            }
         });
 
-        // 2. Detekcia zelenej fázy
+        // 2. Bezpečné predchádzanie kolíziám (Dávanie prednosti v jazde)
+        const opposites = { 'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east' };
+        const isSafeToCross = (car) => {
+            if (car.lane !== 'L') return true; // Rovno a doprava môžu ísť bez dávania prednosti protiidúcim
+            const opp = opposites[car.from];
+            
+            for (let [, other] of this.visualVehicles.entries()) {
+                if (other.from === opp && (other.lane === 'S' || other.lane === 'R')) {
+                    if (other.state === 'crossing') return false; // Protiidúce auto je už v križovatke
+                    if (other.state === 'waiting') {
+                        const dist = Math.hypot(other.x - other.stopX, other.y - other.stopY);
+                        const signalKey = `${other.from.charAt(0).toUpperCase()}_${other.lane}`;
+                        const hasGreen = signals && signals[signalKey] === 'green';
+                        // Ak protiidúce auto stojí vpredu a má zelenú, musíme mu dať prednosť
+                        if (hasGreen && dist < 40) return false; 
+                    }
+                }
+            }
+            return true;
+        };
+
+        // 3. Očistenie a spúšťanie áut
         for (let [id, car] of this.visualVehicles.entries()) {
+            // Riešenie "prelievania": Ak backend zmazal auto, ktoré je ešte ďaleko v rade, jednoducho ho odstránime
             if (!currentIds.has(id)) {
-                if (car.state !== 'crossing') {
-                    car.state = 'crossing';
-                    car.distanceCrossed = 0;
+                if (car.state === 'waiting') {
+                    this.visualVehicles.delete(id);
+                    continue;
+                }
+            }
+
+            // Štartovanie na zelenú s rešpektovaním prednosti
+            if (car.state === 'waiting') {
+                const signalKey = `${car.from.charAt(0).toUpperCase()}_${car.lane}`;
+                const isGreen = signals && signals[signalKey] === 'green';
+                
+                const isFirst = car.targetX === car.stopX && car.targetY === car.stopY; 
+                const distToStop = Math.hypot(car.x - car.stopX, car.y - car.stopY);
+
+                if (isGreen && isFirst && distToStop <= 10) {
+                    if (isSafeToCross(car)) {
+                        car.state = 'crossing';
+                        car.distanceCrossed = 0;
+                        car.angleTraveled = 0;
+                    }
                 }
             }
         }
 
-        // 3. Pohyb a Kreslenie
+        // 4. Fyzický pohyb a kreslenie
         for (let [id, car] of this.visualVehicles.entries()) {
-            
             if (car.state === 'waiting') {
-                const speed = 10;
+                const speed = 8;
                 const distX = car.targetX - car.x;
                 const distY = car.targetY - car.y;
-                
-                // Pohyb pomocou exaktných celých čísel (dx a dy)
                 if (Math.hypot(distX, distY) > speed) {
                     car.x += car.dx * speed;
                     car.y += car.dy * speed;
                 } else {
                     car.x = car.targetX; car.y = car.targetY;
                 }
-
-            } else if (car.state === 'crossing') {
-                const speed = 12;
-
+            } else {
+                // POHYB CEZ KRIŽOVATKU
+                let currentSpeed = 10;
+                
                 if (car.lane !== 'S' && !car.hasFinishedTurn) {
-                    if ((car.lane === 'R' && car.distanceCrossed > 45) ||
-                        (car.lane === 'L' && car.distanceCrossed > 110)) {
+                    const distancePastStop = (car.x - car.stopX) * car.dx + (car.y - car.stopY) * car.dy;
+                    
+                    // OPRAVA: Presné matematické body odbočenia zabránia opusteniu plátna pre Východ a Západ
+                    const turnTrigger = (car.lane === 'R') ? 10 : 20;
+
+                    if (distancePastStop >= turnTrigger && distancePastStop > 0) {
                         car.isTurning = true;
                     }
 
                     if (car.isTurning) {
-                        const turnSpeed = 0.08;
-                        const turnDir = car.lane === 'R' ? 1 : -1;
-                        car.angle += turnSpeed * turnDir;
-                        car.angleTraveled = (car.angleTraveled || 0) + turnSpeed;
+                        currentSpeed = 6; 
+                        const turnDir = (car.lane === 'R') ? 1 : -1;
+                        const turnStep = (car.lane === 'R') ? 0.3 : 0.085;
+                        
+                        car.angle += turnStep * turnDir;
+                        car.angleTraveled += turnStep;
 
                         if (car.angleTraveled >= Math.PI / 2) {
                             car.angle = car.targetAngle;
@@ -232,9 +271,9 @@ export class IntersectionRenderer {
                     }
                 }
 
-                car.distanceCrossed += speed;
-                car.x += Math.cos(car.angle) * speed;
-                car.y += Math.sin(car.angle) * speed;
+                car.distanceCrossed += currentSpeed;
+                car.x += Math.cos(car.angle) * currentSpeed;
+                car.y += Math.sin(car.angle) * currentSpeed;
 
                 if (car.x < -100 || car.x > this.width + 100 || car.y < -100 || car.y > this.height + 100) {
                     this.visualVehicles.delete(id);
@@ -245,13 +284,10 @@ export class IntersectionRenderer {
             this.ctx.save();
             this.ctx.translate(car.x, car.y);
             this.ctx.rotate(car.angle);
-
             this.ctx.fillStyle = car.color;
             this.ctx.fillRect(-carLength/2, -carWidth/2, carLength, carWidth);
-            
             this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
             this.ctx.fillRect(carLength/2 - 6, -carWidth/2 + 2, 4, carWidth - 4);
-
             this.ctx.restore();
         }
     }
@@ -259,7 +295,8 @@ export class IntersectionRenderer {
     renderFrame(stateData) {
         this.drawStaticBackground();
         if (stateData.signals) this.drawSignals(stateData.signals);
-        if (stateData.vehicles) this.drawVehicles(stateData.vehicles);
+        // Pridaný argument stateData.signals pre drawVehicles
+        if (stateData.vehicles) this.drawVehicles(stateData.vehicles, stateData.signals);
     }
 
     clearVehicles() {
