@@ -40,11 +40,11 @@ class IntersectionSimulation:
         self.started_at = datetime.now(UTC).isoformat()
         self.completed_at: str | None = None
 
-        self.queues: dict[str, list[dict]] = {
-            "north": [],
-            "south": [],
-            "east": [],
-            "west": [],
+        self.queues: dict[str, dict[str, list[dict]]] = {
+            "north": {"L": [], "S": [], "R": []},
+            "south": {"L": [], "S": [], "R": []},
+            "east": {"L": [], "S": [], "R": []},
+            "west": {"L": [], "S": [], "R": []},
         }
 
         self.crossing_vehicles: list[dict] = []
@@ -103,14 +103,13 @@ class IntersectionSimulation:
         new_vehicles = self.traffic_generator.generate(self.traffic_intensity)
 
         for vehicle in new_vehicles:
-            vehicle_obj = create_vehicle(vehicle["from"])
-            self.queues[vehicle["from"]].append(vehicle_obj)
+            vehicle_obj = create_vehicle(vehicle["from"], vehicle["lane"])
+            self.queues[vehicle["from"]][vehicle["lane"]].append(vehicle_obj)
             self.statistics["total_vehicles_generated"] += 1
 
         update_waiting_vehicles(self.queues, self.tick_seconds)
 
         self._update_crossing_vehicles()
-
         self._process_green_signals(signals)
         self._update_statistics()
 
@@ -120,34 +119,42 @@ class IntersectionSimulation:
         )
 
     def _process_green_signals(self, signals: dict[str, str]) -> None:
-        direction_map = {
-            "north": ["N_S", "N_L", "N_R"],
-            "south": ["S_S", "S_L", "S_R"],
-            "east": ["E_S", "E_L", "E_R"],
-            "west": ["W_S", "W_L", "W_R"],
+        signal_to_queue = {
+            "N_L": ("north", "L"),
+            "N_S": ("north", "S"),
+            "N_R": ("north", "R"),
+            "S_L": ("south", "L"),
+            "S_S": ("south", "S"),
+            "S_R": ("south", "R"),
+            "E_L": ("east", "L"),
+            "E_S": ("east", "S"),
+            "E_R": ("east", "R"),
+            "W_L": ("west", "L"),
+            "W_S": ("west", "S"),
+            "W_R": ("west", "R"),
         }
 
-        for direction, signal_ids in direction_map.items():
-            has_green = any(
-                signals.get(signal_id) == "green" for signal_id in signal_ids
-            )
+        for signal_id, (direction, lane) in signal_to_queue.items():
+            if signals.get(signal_id) != "green":
+                continue
 
-            if has_green and self.queues[direction]:
-                vehicle = self.queues[direction].pop(0)
-                vehicle["state"] = "crossing"
+            lane_queue = self.queues[direction][lane]
+            if not lane_queue:
+                continue
 
-                # 🔥 NOVÉ
-                vehicle["crossing_time_left"] = VEHICLE_CROSSING_SECONDS
-                self.crossing_vehicles.append(vehicle)
-
-                self.statistics["total_vehicles_passed"] += 1
+            vehicle = lane_queue.pop(0)
+            vehicle["state"] = "crossing"
+            vehicle["crossing_time_left"] = VEHICLE_CROSSING_SECONDS
+            self.crossing_vehicles.append(vehicle)
+            self.statistics["total_vehicles_passed"] += 1
 
     def _update_crossing_vehicles(self) -> None:
         remaining = []
 
         for vehicle in self.crossing_vehicles:
             vehicle["crossing_time_left"] = round(
-                vehicle["crossing_time_left"] - self.tick_seconds, 2
+                vehicle["crossing_time_left"] - self.tick_seconds,
+                2,
             )
 
             if vehicle["crossing_time_left"] > 0:
@@ -155,8 +162,25 @@ class IntersectionSimulation:
 
         self.crossing_vehicles = remaining
 
+    def _direction_queue_length(self, direction: str) -> int:
+        return sum(len(queue) for queue in self.queues[direction].values())
+
+    def _all_waiting_vehicles(self) -> list[dict]:
+        vehicles: list[dict] = []
+
+        for direction_queues in self.queues.values():
+            for lane_queue in direction_queues.values():
+                vehicles.extend(lane_queue)
+
+        return vehicles
+
     def _update_statistics(self) -> None:
-        queue_lengths = [len(queue) for queue in self.queues.values()]
+        queue_lengths = [
+            self._direction_queue_length("north"),
+            self._direction_queue_length("south"),
+            self._direction_queue_length("east"),
+            self._direction_queue_length("west"),
+        ]
         total_waiting = sum(queue_lengths)
 
         self.statistics["total_vehicles_waiting"] = total_waiting
@@ -171,10 +195,9 @@ class IntersectionSimulation:
                 2,
             )
 
-        all_wait_times = []
-        for queue in self.queues.values():
-            for vehicle in queue:
-                all_wait_times.append(vehicle["wait_time"])
+        all_wait_times = [
+            vehicle["wait_time"] for vehicle in self._all_waiting_vehicles()
+        ]
 
         if all_wait_times:
             self.statistics["average_wait_time"] = round(
@@ -200,14 +223,15 @@ class IntersectionSimulation:
         }
 
     def build_state_message(
-            self, signals: dict[str, str], cycle_time: float) -> dict:
-        vehicles = []
-
-        for queue in self.queues.values():
-            vehicles.extend(queue)
+        self,
+        signals: dict[str, str],
+        cycle_time: float,
+    ) -> dict:
+        vehicles = self._all_waiting_vehicles()
 
         for vehicle in self.crossing_vehicles:
-            v = {k: v for k, v in vehicle.items() if k != "crossing_time_left"}
+            v = {k: value for k, value in vehicle.items() if k !=
+                 "crossing_time_left"}
             vehicles.append(v)
 
         return {
@@ -217,10 +241,10 @@ class IntersectionSimulation:
             "signals": signals,
             "vehicles": vehicles,
             "queue_lengths": {
-                "north": len(self.queues["north"]),
-                "south": len(self.queues["south"]),
-                "east": len(self.queues["east"]),
-                "west": len(self.queues["west"]),
+                "north": self._direction_queue_length("north"),
+                "south": self._direction_queue_length("south"),
+                "east": self._direction_queue_length("east"),
+                "west": self._direction_queue_length("west"),
             },
             "statistics": self.statistics,
         }
