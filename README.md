@@ -178,7 +178,7 @@ kazdy tick (0.1 s): akumulator += 20 / 60 * 0.1 ≈ 0.033
  - pouzivaju sa hodnoty z `.env`
 
 ---
-## docker-compose.yaml - POVINNE ABY SA SPUSTILA DB 
+## docker-compose.yaml 
 - !!! musi byt nainstalovany docker a docker-compose
 - databaza spusta lokalne 
 - postgresql databaza
@@ -204,8 +204,7 @@ docker compose down
 - zadefinovane vsetky endpointy, ktore volaju jednotlive funkcie z `app/`
 
 ---
-## Dockerfile - Nepovinne (iba ak to chcete spustit cez docker)
-- !!! musit mat nainstalovany docker a docker-compose
+## Dockerfile 
 - sluzi na spustenie celej aplikacie v jednom kontajneri 
 - docker si natiahne python image
 - nainstaluje potrebne python kniznice z requirments.txt.
@@ -213,12 +212,8 @@ docker compose down
 - po spusteni - otvorit prehliadact `localhost:8000/docs#/`
 
 ---
-## NAVOD NA SPUSTENIE CEZ DOCKER
-1. potrebne nainstalovat python kniznice z requirments.txt cez pip install 
-2. v `krizovatka/` spustit `docker compose up `
+## init.sql- automaticky vytvori databazove tabulky a vlozi prednastavene konfiguracie pri prvom spusteni kontajnera
 
-## NAVOD NA SPUSTENIE CEZ PYTHON
-1. potrebne mat nainstalovat python kniznice z requirments.txt cez pip install
-2. v `krizovatka/` odmazat `Dockerfile`
-3. v `krizovatka/` spustit `docker compose up` - spustenie databazy
-4. cez terminal spustit `uvicorn main:app --reload --port 8080`
+## SPUSTENIE 
+-v `krizovatka/` spustit `docker compose up --build `
+
