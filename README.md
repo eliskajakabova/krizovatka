@@ -3,3 +3,4 @@
 - **frontend** - set backend parameters using REST API which in most projects also starts simulation 
 - **simulator** - simple webpage which draws/presents data acquired from websocket
 - **doc** - add your analysis in markdown here
+skuska
