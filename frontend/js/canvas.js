@@ -14,6 +14,33 @@ export class IntersectionRenderer {
         this.visualVehicles = new Map();
     }
 
+    _getTurnTarget(from, lane) {
+        const map = {
+            north: {
+                L: { to: 'west', lane: 'L' },
+                S: { to: 'south', lane: 'S' },
+                R: { to: 'east', lane: 'R' },
+            },
+            south: {
+                L: { to: 'east', lane: 'L' },
+                S: { to: 'north', lane: 'S' },
+                R: { to: 'west', lane: 'R' },
+            },
+            east: {
+                L: { to: 'north', lane: 'L' },
+                S: { to: 'west', lane: 'S' },
+                R: { to: 'south', lane: 'R' },
+            },
+            west: {
+                L: { to: 'south', lane: 'L' },
+                S: { to: 'east', lane: 'S' },
+                R: { to: 'north', lane: 'R' },
+            },
+        };
+
+        return map[from][lane];
+    }
+
     drawStaticBackground() {
         this.ctx.clearRect(0, 0, this.width, this.height);
         this.ctx.fillStyle = '#f4f7f6';
@@ -202,7 +229,7 @@ export class IntersectionRenderer {
             this.ctx.fill();
         };
 
-        const stopDist = this.roadWidth / 2 + 15;
+        const stopDist = this.roadWidth / 2 + 2;
 
         if (signals.N_L) drawLight(this.centerX - 10, this.centerY - stopDist, signals.N_L);
         if (signals.N_S) drawLight(this.centerX - 30, this.centerY - stopDist, signals.N_S);
@@ -221,38 +248,21 @@ export class IntersectionRenderer {
         if (signals.W_R) drawLight(this.centerX - stopDist, this.centerY + 50, signals.W_R);
     }
 
-    _getLaneCenters(direction) {
+    _getLaneCenters(direction, isOutgoing = false) {
+        const w = this.laneWidth; // 20
+        // Offsety od stredu: 10, 30, 50 px
+        // Prichádzajúce: -50 (R), -30 (S), -10 (L)
+        // Odchádzajúce:  10 (L),  30 (S),  50 (R)
+        
+        const incoming = { L: -10, S: -30, R: -50 };
+        const outgoing = { L: 10, S: 30, R: 50 };
+        const offsets = isOutgoing ? outgoing : incoming;
+
         switch (direction) {
-            case 'north':
-                return {
-                    L: this.centerX - 10,
-                    S: this.centerX - 30,
-                    R: this.centerX - 50,
-                };
-            case 'south':
-                return {
-                    L: this.centerX + 10,
-                    S: this.centerX + 30,
-                    R: this.centerX + 50,
-                };
-            case 'east':
-                return {
-                    L: this.centerY - 10,
-                    S: this.centerY - 30,
-                    R: this.centerY - 50,
-                };
-            case 'west':
-                return {
-                    L: this.centerY + 10,
-                    S: this.centerY + 30,
-                    R: this.centerY + 50,
-                };
-            default:
-                return {
-                    L: 0,
-                    S: 0,
-                    R: 0,
-                };
+            case 'north': return { L: this.centerX + offsets.L, S: this.centerX + offsets.S, R: this.centerX + offsets.R };
+            case 'south': return { L: this.centerX - offsets.L, S: this.centerX - offsets.S, R: this.centerX - offsets.R };
+            case 'east':  return { L: this.centerY - offsets.L, S: this.centerY - offsets.S, R: this.centerY - offsets.R };
+            case 'west':  return { L: this.centerY + offsets.L, S: this.centerY + offsets.S, R: this.centerY + offsets.R };
         }
     }
 
@@ -353,6 +363,9 @@ export class IntersectionRenderer {
         vehicle.x += (dx / dist) * speed;
         vehicle.y += (dy / dist) * speed;
     }
+    _isVertical(direction) {
+        return direction === 'north' || direction === 'south';
+    }
 
     _startLocalCrossing(vehicle) {
         if (vehicle.localCrossingStarted) {
@@ -374,33 +387,83 @@ export class IntersectionRenderer {
         vehicle.localCrossingDistance = 0;
     }
 
-    _updateLocalCrossing(vehicle) {
-        const speed = 10;
-        const maxDistance = this.roadWidth + 40;
+    _isCarInFront(vehicle) {
+        const safeDistance = 45; // dĺžka auta (24) + rezerva
 
-        this._startLocalCrossing(vehicle);
+        for (const other of this.visualVehicles.values()) {
+            if (vehicle.id === other.id) continue;
+            if (vehicle.from !== other.from || vehicle.lane !== other.lane) continue;
+            if (vehicle.renderState !== other.renderState) continue;
 
-        switch (vehicle.from) {
-            case 'north':
-                vehicle.x = vehicle.lockedAxis;
-                vehicle.y += speed;
-                break;
-            case 'south':
-                vehicle.x = vehicle.lockedAxis;
-                vehicle.y -= speed;
-                break;
-            case 'east':
-                vehicle.y = vehicle.lockedAxis;
-                vehicle.x -= speed;
-                break;
-            case 'west':
-                vehicle.y = vehicle.lockedAxis;
-                vehicle.x += speed;
-                break;
+            const dx = other.x - vehicle.x;
+            const dy = other.y - vehicle.y;
+
+            // Kontrola podľa smeru jazdy
+            if (vehicle.from === 'north' && dy > 0 && dy < safeDistance) return true;
+            if (vehicle.from === 'south' && dy < 0 && dy > -safeDistance) return true;
+            if (vehicle.from === 'east' && dx < 0 && dx > -safeDistance) return true;
+            if (vehicle.from === 'west' && dx > 0 && dx < safeDistance) return true;
         }
+        return false;
+    }
 
-        vehicle.localCrossingDistance += speed;
-        return vehicle.localCrossingDistance <= maxDistance;
+    _updateLocalCrossing(vehicle) {
+    const speed = 5;
+    const maxDistance = Math.max(this.width, this.height);
+    this._startLocalCrossing(vehicle);
+
+    const lanes = this._getLaneCenters(vehicle.from);
+    const centerPoint = this.roadWidth / 2; // Bod, kde sa cesty krížia
+
+    // Pomocná logika pre smer po otočení
+    if (vehicle.lane === 'S') {
+        // ROVNO - tvoja pôvodná logika
+        if (vehicle.from === 'north') vehicle.y += speed;
+        if (vehicle.from === 'south') vehicle.y -= speed;
+        if (vehicle.from === 'east')  vehicle.x -= speed;
+        if (vehicle.from === 'west')  vehicle.x += speed;
+    } else {
+        
+        this._handleTurning(vehicle, speed);
+    }
+
+    vehicle.localCrossingDistance += speed;
+    return vehicle.localCrossingDistance <= maxDistance;
+}
+
+    _handleTurning(vehicle, speed) {
+        // Získame stredy pruhov cesty, KAM auto ide (isOutgoing = true)
+        const targetLanes = this._getLaneCenters(vehicle.to, true);
+        const targetPos = targetLanes[vehicle.targetLane];
+
+        // Bod zlomu (pivot) - stred križovatky s malým posunom podľa pruhu
+        const pivotX = this.centerX;
+        const pivotY = this.centerY;
+
+        let reachedPivot = false;
+        if (vehicle.from === 'north') reachedPivot = vehicle.y >= pivotY + (vehicle.lane === 'L' ? -10 : 10);
+        if (vehicle.from === 'south') reachedPivot = vehicle.y <= pivotY + (vehicle.lane === 'L' ? 10 : -10);
+        if (vehicle.from === 'east')  reachedPivot = vehicle.x <= pivotX + (vehicle.lane === 'L' ? 10 : -10);
+        if (vehicle.from === 'west')  reachedPivot = vehicle.x >= pivotX + (vehicle.lane === 'L' ? -10 : 10);
+
+        if (!reachedPivot) {
+            // Ešte sme neprišli do stredu -> pokračuj rovno
+            if (vehicle.from === 'north') vehicle.y += speed;
+            if (vehicle.from === 'south') vehicle.y -= speed;
+            if (vehicle.from === 'east')  vehicle.x -= speed;
+            if (vehicle.from === 'west')  vehicle.x += speed;
+        } else {
+            // Už točíme -> nastavíme cieľovú os a uhol
+            if (vehicle.to === 'north' || vehicle.to === 'south') {
+                vehicle.x = targetPos; // Zarovnaj sa na pruh novej cesty
+                if (vehicle.to === 'north') { vehicle.y -= speed; vehicle.angle = -Math.PI/2; }
+                else { vehicle.y += speed; vehicle.angle = Math.PI/2; }
+            } else {
+                vehicle.y = targetPos; // Zarovnaj sa na pruh novej cesty
+                if (vehicle.to === 'east') { vehicle.x += speed; vehicle.angle = 0; }
+                else { vehicle.x -= speed; vehicle.angle = Math.PI; }
+            }
+        }
     }
 
     drawVehicles(vehicles) {
@@ -421,17 +484,20 @@ export class IntersectionRenderer {
 
             const direction = (vehicle.from || 'north').toLowerCase();
             const lane = (vehicle.lane || 'S').toUpperCase();
-            const backendState = vehicle.state || 'waiting';
+            const backendState = (vehicle.state || 'waiting').toLowerCase();
 
             if (!this.visualVehicles.has(vehicle.id)) {
                 const template = this._getVehicleTemplate(direction, lane);
+                const target = this._getTurnTarget(direction, lane);
 
                 this.visualVehicles.set(vehicle.id, {
                     id: vehicle.id,
                     from: direction,
                     lane,
+                    to: target.to,
+                    targetLane: target.lane,
                     backendState,
-                    renderState: backendState === 'crossing' ? 'crossing' : 'waiting',
+                    renderState: 'waiting',
                     wait_time: vehicle.wait_time || 0,
                     x: template.x,
                     y: template.y,
@@ -446,8 +512,9 @@ export class IntersectionRenderer {
             }
 
             const visual = this.visualVehicles.get(vehicle.id);
-            if (!visual) {
-                return;
+            if (backendState === 'crossing' && visual.renderState !== 'crossing') {
+                visual.renderState = 'crossing';
+                visual.localCrossingStarted = false; // Resetni pre istotu
             }
 
             visual.from = direction;
@@ -461,12 +528,17 @@ export class IntersectionRenderer {
         });
 
         for (const [id, vehicle] of this.visualVehicles.entries()) {
-            if (currentIds.has(id)) {
-                continue;
-            }
+            if (!currentIds.has(id)) {
+                if (vehicle.renderState === 'crossing') {
+                    continue; 
+                }
+                vehicle.missingFrames = (vehicle.missingFrames || 0) + 1;
 
-            if (vehicle.renderState === 'waiting') {
-                this.visualVehicles.delete(id);
+                if (vehicle.missingFrames > 10) {
+                    this.visualVehicles.delete(id);
+                }
+            } else {
+                vehicle.missingFrames = 0;
             }
         }
 
@@ -490,13 +562,11 @@ export class IntersectionRenderer {
                 });
 
                 queue.forEach((vehicle, rowIndex) => {
-                    const target = this._getWaitingTargetByLane(
-                        direction,
-                        lane,
-                        rowIndex,
-                        gap
-                    );
-                    this._moveTowards(vehicle, target.x, target.y, 8);
+                    const target = this._getWaitingTargetByLane(direction, lane, rowIndex, gap);
+                    
+                    if (!this._isCarInFront(vehicle)) {
+                        this._moveTowards(vehicle, target.x, target.y, 8);
+                    }
                 });
             }
         }
@@ -506,19 +576,13 @@ export class IntersectionRenderer {
                 continue;
             }
 
-            if (vehicle.backendState !== 'crossing') {
-                continue;
-            }
+            const isCrossing = vehicle.backendState === 'crossing';
 
-            const nearStopLine =
-                Math.abs(vehicle.x - vehicle.stopX) <= 12 &&
-                Math.abs(vehicle.y - vehicle.stopY) <= 12;
-
-            if (nearStopLine) {
+            if (isCrossing && vehicle.renderState !== 'crossing') {
                 vehicle.renderState = 'crossing';
                 vehicle.localCrossingStarted = false;
                 vehicle.localCrossingDistance = 0;
-            }
+            } 
         }
 
         for (const [id, vehicle] of this.visualVehicles.entries()) {
@@ -528,7 +592,13 @@ export class IntersectionRenderer {
 
             const keep = this._updateLocalCrossing(vehicle);
             if (!keep) {
-                this.visualVehicles.delete(id);
+                vehicle.outOfBounds = (vehicle.outOfBounds || 0) + 1;
+
+                if (vehicle.outOfBounds > 30) {
+                    vehicle.finished = true;
+                }
+            } else {
+                vehicle.outOfBounds = 0;
             }
         }
 
@@ -554,6 +624,11 @@ export class IntersectionRenderer {
             );
 
             this.ctx.restore();
+        }
+        for (const [id, vehicle] of this.visualVehicles.entries()) {
+            if (vehicle.finished && vehicle.missingFrames > 5) {
+                this.visualVehicles.delete(id);
+            }
         }
     }
 
