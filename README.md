@@ -14,12 +14,20 @@ krizovatka/
 ├── db/
 │   └── db_config.py
 ├── frontend/
-│   └──
+│   ├── index.html
+│   ├── css/
+│       └── style.css
+│   └── js/
+│       ├── canvas.js           
+│       ├── websocket.js        
+│       ├── api.js              
+│       └── main.js  
+├── init.sql    
 ├── docker-compose.yaml
 ├── Dockerfile
 ├── main.py
 ├── requirments.txt
-├── .env
+
 ```
 ---
 
