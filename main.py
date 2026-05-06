@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket
@@ -5,21 +6,34 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import Optional
+from fastapi.staticfiles import StaticFiles
 
 from app.models import (
     ConfigurationRequest, ConfigurationResponse,
     SimulationRequest, SimulationStartResponse,
-    SimulationListResponse, SimulationStopResponse,
+    SimulationStopResponse,
 )
 from app.conflict import find_conflicts
 from app import repository
 from app import simulation_service
+from db.db_config import init_db
 
-app = FastAPI(title="Intersection Signal API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="Intersection Signal API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://localhost:8000",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -179,3 +193,6 @@ async def on_validation_error(request, exc: RequestValidationError):
         "message": first.get("msg"),
         "field":   field,
     })
+
+# úplne na koniec main.py, po exception_handler
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
