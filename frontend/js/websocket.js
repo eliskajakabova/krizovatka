@@ -41,6 +41,7 @@ function handleWS(msg) {
     const wsVehicles = msg.vehicles || [];
     const activeIds = new Set(wsVehicles.map(v => v.id));
     vehicles = vehicles.filter(v => activeIds.has(v.id) || v.state === 'crossing');
+    const crossedThisTick = new Set();
     for(const wv of wsVehicles) {
       const lane = (wv.turn) || LANE_MAP[wv.from]?.[wv.to] || 'S';
       const existing = vehicles.find(v => v.id === wv.id);
@@ -49,9 +50,16 @@ function handleWS(msg) {
         const sp = SPAWN_PX[wv.from]?.[lane];
         const st = STOP_PX[wv.from]?.[lane];
         if(!sp || !st) continue;
+        let sx = sp.x, sy = sp.y;
+        if(vehicles.some(v => v.dir === wv.from && v.lane === lane && Math.hypot(v.x - sp.x, v.y - sp.y) < GAP)) {
+          if(wv.from === 'north') sy -= GAP;
+          else if(wv.from === 'south') sy += GAP;
+          else if(wv.from === 'east') sx += GAP;
+          else if(wv.from === 'west') sx -= GAP;
+        }
         vehicles.push({
           id:wv.id, dir:wv.from, lane, col:TURN_COLOR[lane]||'#4caf50',
-          x:sp.x, y:sp.y, stopX:st.x, stopY:st.y,
+          x:sx, y:sy, stopX:st.x, stopY:st.y,
           angle:ANGLE[wv.from], state:wv.state, queueRow:0, wps:null, wpIdx:0,
         });
       } else {
@@ -59,6 +67,8 @@ function handleWS(msg) {
           existing.wps = getExitWaypoints(existing.dir, existing.lane);
           existing.wpIdx = 0;
           existing.committed = false;
+          existing.crossDelay = crossedThisTick.has(wv.from) ? 2 : 0;
+          crossedThisTick.add(wv.from);
         }
         existing.state = wv.state;
       }
