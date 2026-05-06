@@ -9,15 +9,11 @@ from fastapi import WebSocket
 from db.db_config import get_connection
 from app.simulation_engine import IntersectionEngine, LAYOUT
 
-# sim_id -> state dict (private keys prefixed with _)
 _running: dict[str, dict] = {}
-
-# sim_id -> set of connected WebSocket clients
 _ws_clients: dict[str, set[WebSocket]] = {}
 
 
 async def ws_connect(sim_id: str, ws: WebSocket) -> None:
-    """Register a WebSocket client and stream frames until simulation ends."""
     await ws.accept()
     _ws_clients.setdefault(sim_id, set()).add(ws)
 
@@ -26,19 +22,16 @@ async def ws_connect(sim_id: str, ws: WebSocket) -> None:
         await ws.close(code=4004, reason="Simulation not found or already finished")
         return
 
-    # Send setup message immediately
     await ws.send_text(_json.dumps({
-        "type":              "setup",
-        "simulation_id":     sim_id,
-        "config_id":         state["config_id"],
-        "cycle_duration":    state["cycle_duration"],
-        "signal_timings":    state["signal_timings"],
+        "type":                "setup",
+        "simulation_id":       sim_id,
+        "config_id":           state["config_id"],
+        "cycle_duration":      state["cycle_duration"],
+        "signal_timings":      state["signal_timings"],
         "intersection_layout": LAYOUT,
     }))
 
     try:
-        # Keep connection alive — frames are pushed from _broadcast()
-        # Ignore any inbound messages (one-directional)
         while True:
             await ws.receive_text()
     except Exception:
@@ -75,18 +68,17 @@ def start_simulation(config: dict, req) -> dict:
     }
 
     state = {
-        "simulation_id":       sim_id,
-        "config_id":           config["id"],
-        "config_name":         config["name"],
-        "status":              "running",
-        "simulation_duration": req.simulation_duration,
-        "traffic_intensity":   intensity,
-        "vehicle_speed":       req.vehicle_speed,
-        "cycle_duration":      cycle,
-        "signal_timings":      timings,
-        "started_at":          now,
-        "completed_at":        None,
-        # live stats (updated by engine)
+        "simulation_id":            sim_id,
+        "config_id":                config["id"],
+        "config_name":              config["name"],
+        "status":                   "running",
+        "simulation_duration":      req.simulation_duration,
+        "traffic_intensity":        intensity,
+        "vehicle_speed":            req.vehicle_speed,
+        "cycle_duration":           cycle,
+        "signal_timings":           timings,
+        "started_at":               now,
+        "completed_at":             None,
         "total_vehicles_generated": 0,
         "total_vehicles_passed":    0,
         "average_wait_time":        0.0,
@@ -115,7 +107,7 @@ def start_simulation(config: dict, req) -> dict:
             "vehicle_speed":       req.vehicle_speed,
         },
         "expected_throughput": throughput,
-        "started_at":    now,
+        "started_at":          now,
     }
 
 
@@ -188,7 +180,6 @@ async def _run(sim_id: str, engine: IntersectionEngine, duration: float):
             await _broadcast(sim_id, frame)
             await asyncio.sleep(0.1)
 
-        # Completed
         state["status"]       = "completed"
         state["completed_at"] = datetime.now(timezone.utc)
         final = engine.final_stats()
@@ -231,81 +222,93 @@ def _public(state: dict) -> dict:
 
 
 def _save_to_db(state: dict) -> None:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO simulations
-                    (id, config_id, status, simulation_duration,
-                     traffic_intensity, vehicle_speed, started_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                state["simulation_id"], state["config_id"], state["status"],
-                state["simulation_duration"],
-                _json.dumps(state["traffic_intensity"]),
-                state["vehicle_speed"], state["started_at"],
-            ))
-        conn.commit()
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        INSERT INTO simulations
+            (id, config_id, status, simulation_duration,
+             traffic_intensity, vehicle_speed, started_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        state["simulation_id"], state["config_id"], state["status"],
+        state["simulation_duration"],
+        _json.dumps(state["traffic_intensity"]),
+        state["vehicle_speed"],
+        state["started_at"].isoformat(),
+    ))
+    conn.commit()
+    conn.close()
 
 
 def _update_in_db(state: dict) -> None:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE simulations SET
-                    status                   = %s,
-                    completed_at             = %s,
-                    total_vehicles_generated = %s,
-                    total_vehicles_passed    = %s,
-                    average_wait_time        = %s,
-                    max_wait_time            = %s,
-                    intersection_utilization = %s
-                WHERE id = %s
-            """, (
-                state["status"], state.get("completed_at"),
-                state["total_vehicles_generated"], state["total_vehicles_passed"],
-                state["average_wait_time"], state["max_wait_time"],
-                state["intersection_utilization"], state["simulation_id"],
-            ))
-        conn.commit()
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        UPDATE simulations SET
+            status                   = ?,
+            completed_at             = ?,
+            total_vehicles_generated = ?,
+            total_vehicles_passed    = ?,
+            average_wait_time        = ?,
+            max_wait_time            = ?,
+            intersection_utilization = ?
+        WHERE id = ?
+    """, (
+        state["status"],
+        state["completed_at"].isoformat() if state.get("completed_at") else None,
+        state["total_vehicles_generated"],
+        state["total_vehicles_passed"],
+        state["average_wait_time"],
+        state["max_wait_time"],
+        state["intersection_utilization"],
+        state["simulation_id"],
+    ))
+    conn.commit()
+    conn.close()
 
 
 def _fetch_one(sim_id: str) -> dict | None:
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                SELECT s.id as simulation_id, s.config_id, c.name as config_name,
-                       s.status, s.started_at, s.completed_at,
-                       s.total_vehicles_generated, s.total_vehicles_passed,
-                       s.average_wait_time, s.max_wait_time, s.intersection_utilization
-                FROM simulations s
-                LEFT JOIN configurations c ON c.id = s.config_id
-                WHERE s.id = %s
-            """, (sim_id,))
-            row = cur.fetchone()
-            if not row:
-                return None
-            return dict(zip([d[0] for d in cur.description], row))
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT s.id as simulation_id, s.config_id, c.name as config_name,
+               s.status, s.started_at, s.completed_at,
+               s.total_vehicles_generated, s.total_vehicles_passed,
+               s.average_wait_time, s.max_wait_time, s.intersection_utilization
+        FROM simulations s
+        LEFT JOIN configurations c ON c.id = s.config_id
+        WHERE s.id = ?
+    """, (sim_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return dict(row)
 
 
 def _fetch_many(status: Optional[str], config_id: Optional[str], limit: int) -> list[dict]:
     filters, params = [], []
     if status:
-        filters.append("s.status = %s"); params.append(status)
+        filters.append("s.status = ?")
+        params.append(status)
     if config_id:
-        filters.append("s.config_id = %s"); params.append(config_id)
+        filters.append("s.config_id = ?")
+        params.append(config_id)
     where = ("WHERE " + " AND ".join(filters)) if filters else ""
     params.append(limit)
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(f"""
-                SELECT s.id as simulation_id, s.config_id, c.name as config_name,
-                       s.status, s.started_at, s.completed_at,
-                       s.total_vehicles_generated, s.total_vehicles_passed,
-                       s.average_wait_time, s.max_wait_time, s.intersection_utilization
-                FROM simulations s
-                LEFT JOIN configurations c ON c.id = s.config_id
-                {where}
-                ORDER BY s.started_at DESC LIMIT %s
-            """, params)
-            cols = [d[0] for d in cur.description]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    conn = get_connection()
+    cur  = conn.cursor()
+    cur.execute(f"""
+        SELECT s.id as simulation_id, s.config_id, c.name as config_name,
+               s.status, s.started_at, s.completed_at,
+               s.total_vehicles_generated, s.total_vehicles_passed,
+               s.average_wait_time, s.max_wait_time, s.intersection_utilization
+        FROM simulations s
+        LEFT JOIN configurations c ON c.id = s.config_id
+        {where}
+        ORDER BY s.started_at DESC LIMIT ?
+    """, params)
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
