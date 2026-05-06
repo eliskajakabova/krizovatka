@@ -187,6 +187,8 @@ async function startSimAPI() {
     if(d.simulation_id) {
       const wsUrl = API_BASE.replace('http','ws') + '/ws/' + d.simulation_id;
       document.getElementById('wsUrl').value = wsUrl;
+      // Automaticky pripoj WebSocket
+      connect();
     }
   } catch(e) { console.log('Chyba:', e.message); }
 }
