@@ -135,10 +135,6 @@ function drawVehicles(){
     ctx.fillRect(-CAR_L/2,-CAR_W/2,CAR_L,CAR_W);
     ctx.fillStyle='rgba(0,0,0,0.5)';
     ctx.fillRect(CAR_L/2-6,-CAR_W/2+2,4,CAR_W-4);
-    if(v.state==='waiting'){
-      ctx.strokeStyle='#e74c3c'; ctx.lineWidth=2;
-      ctx.strokeRect(-CAR_L/2-1,-CAR_W/2-1,CAR_L+2,CAR_W+2);
-    }
     ctx.restore();
   }
 }

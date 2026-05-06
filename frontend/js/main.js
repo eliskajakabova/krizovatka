@@ -79,7 +79,7 @@ function tick() {
 
   const queues = {};
   for(const v of vehicles) {
-    if(v.state === 'crossing' || v.state === 'done') continue;
+    if((v.state === 'crossing' && v.committed) || v.state === 'done') continue;
     const k = v.dir + '_' + v.lane;
     if(!queues[k]) queues[k] = [];
     queues[k].push(v);
@@ -108,7 +108,7 @@ function tick() {
       if(d <= SPEED) {
         v.x = tx; v.y = ty;
         if(v.queueRow === 0) {
-          if(green){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; }
+          if(green){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; v.committed=false; }
           else v.state = 'waiting';
         }
       } else { v.x += dx/d*SPEED; v.y += dy/d*SPEED; }
@@ -125,9 +125,25 @@ function tick() {
       const dx = tx-v.x, dy = ty-v.y, d = Math.hypot(dx,dy);
       if(d > 1){ v.x += dx/d*Math.min(SPEED,d); v.y += dy/d*Math.min(SPEED,d); }
       else { v.x = tx; v.y = ty; }
-      if(green && v.queueRow === 0){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; }
+      if(green && v.queueRow === 0){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; v.committed=false; }
     }
     else if(v.state === 'crossing') {
+      if(!v.committed && v.x > CX-RW/2 && v.x < CX+RW/2 && v.y > CY-RW/2 && v.y < CY+RW/2) {
+        v.committed = true;
+      }
+      if(!v.committed && !green) {
+        const st = STOP_PX[v.dir][v.lane];
+        const offset = v.queueRow * GAP;
+        let tx = st.x, ty = st.y;
+        if(v.dir==='north') ty = st.y - offset;
+        else if(v.dir==='south') ty = st.y + offset;
+        else if(v.dir==='east') tx = st.x + offset;
+        else if(v.dir==='west') tx = st.x - offset;
+        const dx = tx-v.x, dy = ty-v.y, d = Math.hypot(dx,dy);
+        if(d > 1){ v.x += dx/d*Math.min(SPEED,d); v.y += dy/d*Math.min(SPEED,d); }
+        else { v.x = tx; v.y = ty; }
+        continue;
+      }
       if(v.wpIdx >= v.wps.length) {
         toRemove.add(v.id); stats.pass++;
         if(v.waitTime > 0) waitTimes.push(v.waitTime);

@@ -58,13 +58,14 @@ function handleWS(msg) {
         if(existing.state !== 'crossing' && wv.state === 'crossing') {
           existing.wps = getExitWaypoints(existing.dir, existing.lane);
           existing.wpIdx = 0;
+          existing.committed = false;
         }
         existing.state = wv.state;
       }
     }
     const queues = {};
     for(const v of vehicles) {
-      if(v.state === 'crossing') continue;
+      if(v.state === 'crossing' && v.committed) continue;
       const k = v.dir + '_' + v.lane;
       if(!queues[k]) queues[k] = [];
       queues[k].push(v);
@@ -77,6 +78,22 @@ function handleWS(msg) {
     for(const v of vehicles) {
       if(v.state === 'crossing') {
         if(!v.wps){ v.wps = getExitWaypoints(v.dir, v.lane); v.wpIdx = 0; }
+        if(!v.committed && v.x > CX-RW/2 && v.x < CX+RW/2 && v.y > CY-RW/2 && v.y < CY+RW/2) {
+          v.committed = true;
+        }
+        if(!v.committed && signals[sigKey(v.dir, v.lane)] !== 'green') {
+          const st = STOP_PX[v.dir][v.lane];
+          const offset = v.queueRow * GAP;
+          let tx = st.x, ty = st.y;
+          if(v.dir==='north') ty = st.y - offset;
+          else if(v.dir==='south') ty = st.y + offset;
+          else if(v.dir==='east') tx = st.x + offset;
+          else if(v.dir==='west') tx = st.x - offset;
+          const dx = tx-v.x, dy = ty-v.y, d = Math.hypot(dx,dy);
+          if(d > SPEED){ v.x += dx/d*SPEED; v.y += dy/d*SPEED; }
+          else{ v.x = tx; v.y = ty; }
+          continue;
+        }
         if(v.wpIdx >= v.wps.length){ toRemove.add(v.id); continue; }
         const wp = v.wps[v.wpIdx];
         const dx = wp.x-v.x, dy = wp.y-v.y, d = Math.hypot(dx,dy);
