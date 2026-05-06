@@ -73,7 +73,12 @@ function tick() {
     for(const lane of ['S','L','R']) {
       const ak = dir + '_' + lane;
       acc[ak] = (acc[ak] || 0) + INT[dir][lane];
-      while(acc[ak] >= 1){ acc[ak] -= 1; spawnVehicle(dir, lane); }
+      const sp = SPAWN_PX[dir][lane];
+      while(acc[ak] >= 1) {
+        if(vehicles.some(v => v.dir === dir && v.lane === lane && Math.hypot(v.x - sp.x, v.y - sp.y) < GAP)) break;
+        acc[ak] -= 1;
+        spawnVehicle(dir, lane);
+      }
     }
   }
 
@@ -86,6 +91,8 @@ function tick() {
   }
   for(const [k, arr] of Object.entries(queues)) {
     arr.sort((a,b) => {
+      if(a.state === 'crossing' && b.state !== 'crossing') return -1;
+      if(b.state === 'crossing' && a.state !== 'crossing') return 1;
       const sa = STOP_PX[a.dir][a.lane];
       return Math.hypot(a.x-sa.x, a.y-sa.y) - Math.hypot(b.x-sa.x, b.y-sa.y);
     });
@@ -93,6 +100,7 @@ function tick() {
   }
 
   const sigs = signals;
+  const crossedThisTick = new Set();
   const toRemove = new Set();
   for(const v of vehicles) {
     const green = sigs[sigKey(v.dir, v.lane)] === 'green';
@@ -108,7 +116,7 @@ function tick() {
       if(d <= SPEED) {
         v.x = tx; v.y = ty;
         if(v.queueRow === 0) {
-          if(green){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; v.committed=false; }
+          if(green && !crossedThisTick.has(v.dir)){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; v.committed=false; crossedThisTick.add(v.dir); }
           else v.state = 'waiting';
         }
       } else { v.x += dx/d*SPEED; v.y += dy/d*SPEED; }
@@ -125,7 +133,7 @@ function tick() {
       const dx = tx-v.x, dy = ty-v.y, d = Math.hypot(dx,dy);
       if(d > 1){ v.x += dx/d*Math.min(SPEED,d); v.y += dy/d*Math.min(SPEED,d); }
       else { v.x = tx; v.y = ty; }
-      if(green && v.queueRow === 0){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; v.committed=false; }
+      if(green && v.queueRow === 0 && !crossedThisTick.has(v.dir)){ v.state='crossing'; v.wps=getExitWaypoints(v.dir,v.lane); v.wpIdx=0; v.committed=false; crossedThisTick.add(v.dir); }
     }
     else if(v.state === 'crossing') {
       if(!v.committed && v.x > CX-RW/2 && v.x < CX+RW/2 && v.y > CY-RW/2 && v.y < CY+RW/2) {
