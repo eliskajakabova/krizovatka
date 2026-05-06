@@ -9,7 +9,6 @@
 <header>
   <div class="dot" id="dot"></div>
   <h1>Simulátor križovatky so semaformi</h1>
-  <span id="status-txt">Nepripojený</span>
   <div class="url-row">
     <input id="wsUrl" value="ws://localhost:8000/ws/" placeholder="ws://localhost:8000/ws/sim_...">
     <button class="go"   id="btnConn" onclick="connect()">Pripojiť</button>
@@ -46,7 +45,6 @@
         <div class="stat-row"><span class="sk">čas</span><span class="sv" id="st-time">—</span></div>
         <div class="stat-row"><span class="sk">vygenerované</span><span class="sv" id="st-gen">—</span></div>
         <div class="stat-row"><span class="sk">prešlo</span><span class="sv" id="st-pass">—</span></div>
-        <div class="stat-row"><span class="sk">čakajúce</span><span class="sv" id="st-wait">—</span></div>
         <div class="stat-row"><span class="sk">priem. čakanie</span><span class="sv" id="st-avg">—</span></div>
       </div>
     </div>
