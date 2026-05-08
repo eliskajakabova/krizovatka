@@ -117,18 +117,3 @@ uvicorn main:app --reload
 4. Spustite simuláciu tlačidlom `Spustiť simuláciu`.
 5. Sledujte live vizualizáciu na plátne, ktorá zobrazuje vozidlá a priebeh križovatky.
 6. Počas behu simulácie sledujte aktuálne štatistiky a stav.
-
-## Obmedzenia vstupov
-
-Pri zadávaní hodnôt do formulára dodržiavajte tieto rozsahy:
-
-- **Dĺžka cyklu (cycle_duration)**: 30–300 sekúnd
-- **Časové intervaly semaforov (signal_timings)**:
-  - `start`: 0 ≤ start < cycle_duration
-  - `duration`: 0 ≤ duration ≤ cycle_duration
-- **Intenzita premávky (traffic_intensity)**: 0–100 pre každý smer (sever, juh, východ, západ)
-- **Trvanie simulácie (simulation_duration)**: 1–3600 sekúnd
-
-## Poznámka
-
-V GitHub repozitári je verzia pre localhost v branchi `main` a verzia pre server, kde sú upravené WebSockety, je v priečinku `SERVER`.

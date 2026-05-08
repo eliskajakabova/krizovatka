@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<title>Križovatka — live vizualizácia</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <div class="dot" id="dot"></div>
+  <h1>Simulátor križovatky so semaformi</h1>
+  <span id="status-txt">Nepripojený</span>
+  <div class="url-row">
+    <input id="wsUrl" value="ws://localhost:8000/ws/" placeholder="ws://localhost:8000/ws/sim_...">
+    <button class="go"   id="btnConn" onclick="connect()">Pripojiť</button>
+    <button class="stop" id="btnDisc" onclick="disconnect()" style="display:none">Odpojiť</button>
+  </div>
+</header>
+<main>
+  <div id="canvas-wrap"><canvas id="c"></canvas></div>
+  <aside>
+
+    <div>
+      <div class="pt">Semafory</div>
+      <div class="sig-grid">
+        <div class="sig" id="sig-N_L">S vľavo</div><div class="sig" id="sig-N_S">S priamo</div><div class="sig" id="sig-N_R">S vpravo</div>
+        <div class="sig" id="sig-S_L">J vľavo</div><div class="sig" id="sig-S_S">J priamo</div><div class="sig" id="sig-S_R">J vpravo</div>
+        <div class="sig" id="sig-E_L">V vľavo</div><div class="sig" id="sig-E_S">V priamo</div><div class="sig" id="sig-E_R">V vpravo</div>
+        <div class="sig" id="sig-W_L">Z vľavo</div><div class="sig" id="sig-W_S">Z priamo</div><div class="sig" id="sig-W_R">Z vpravo</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="pt">Fronty</div>
+      <div class="q-grid">
+        <div class="q-box"><div class="q-dir">Sever</div><div class="q-val" id="q-north">—</div></div>
+        <div class="q-box"><div class="q-dir">Juh</div><div class="q-val" id="q-south">—</div></div>
+        <div class="q-box"><div class="q-dir">Východ</div><div class="q-val" id="q-east">—</div></div>
+        <div class="q-box"><div class="q-dir">Západ</div><div class="q-val" id="q-west">—</div></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="pt">Štatistiky</div>
+      <div class="stat-list">
+        <div class="stat-row"><span class="sk">čas</span><span class="sv" id="st-time">—</span></div>
+        <div class="stat-row"><span class="sk">vygenerované</span><span class="sv" id="st-gen">—</span></div>
+        <div class="stat-row"><span class="sk">prešlo</span><span class="sv" id="st-pass">—</span></div>
+        <div class="stat-row"><span class="sk">priem. čakanie</span><span class="sv" id="st-avg">—</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="pt">Konfigurácie</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button onclick="showForm('create-config-form')" style="flex:1;font-size:13px;padding:8px 6px">+ Nová konfigurácia</button>
+      </div>
+
+      <div style="display:flex;gap:4px;margin-bottom:8px">
+        <button id="filter-all"    onclick="setFilter('all')"    style="flex:1;font-size:11px;padding:5px 4px;background:#2a2a2a;border-color:#444;color:#ccc">Všetky</button>
+        <button id="filter-user"   onclick="setFilter('user')"   style="flex:1;font-size:11px;padding:5px 4px">Moje</button>
+        <button id="filter-preset" onclick="setFilter('preset')" style="flex:1;font-size:11px;padding:5px 4px">Prednastavené</button>
+      </div>
+
+      <div id="cfg-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
+
+      <div id="create-config-form" style="display:none;flex-direction:column;gap:6px;margin-bottom:8px;padding:10px;background:#111;border-radius:6px;border:1px solid #2a2a2a">
+        <div style="font-size:11px;color:#555;font-weight:600;letter-spacing:.05em">NOVÁ / UPRAVIŤ KONFIGURÁCIU</div>
+        <input id="cfg-name" placeholder="Názov konfigurácie" style="font-size:13px;padding:6px 9px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+        <input id="cfg-cycle" placeholder="Dĺžka cyklu (s)" type="number" min="30" max="300" style="font-size:13px;padding:6px 9px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+
+        <div style="font-size:11px;color:#555;margin-top:4px">Časovanie semaforov — <span style="color:#888">start (s) a trvanie zelenej (s)</span></div>
+
+        <div style="display:grid;grid-template-columns:52px 1fr 1fr;gap:4px;margin-bottom:2px">
+          <span></span>
+          <span style="font-size:10px;color:#444;text-align:center">start (s)</span>
+          <span style="font-size:10px;color:#444;text-align:center">trvanie (s)</span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:10px;color:#4a7a4a;font-weight:600;margin-top:4px;letter-spacing:.05em">SEVER</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">priamo</span>
+            <input id="t-N_S-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-N_S-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vľavo</span>
+            <input id="t-N_L-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-N_L-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vpravo</span>
+            <input id="t-N_R-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-N_R-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+
+          <div style="font-size:10px;color:#4a7a4a;font-weight:600;margin-top:4px;letter-spacing:.05em">JUH</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">priamo</span>
+            <input id="t-S_S-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-S_S-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vľavo</span>
+            <input id="t-S_L-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-S_L-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vpravo</span>
+            <input id="t-S_R-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-S_R-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+
+          <div style="font-size:10px;color:#4a7a4a;font-weight:600;margin-top:4px;letter-spacing:.05em">VÝCHOD</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">priamo</span>
+            <input id="t-E_S-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-E_S-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vľavo</span>
+            <input id="t-E_L-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-E_L-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vpravo</span>
+            <input id="t-E_R-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-E_R-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+
+          <div style="font-size:10px;color:#4a7a4a;font-weight:600;margin-top:4px;letter-spacing:.05em">ZÁPAD</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">priamo</span>
+            <input id="t-W_S-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-W_S-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vľavo</span>
+            <input id="t-W_L-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-W_L-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:11px;color:#888;width:52px">vpravo</span>
+            <input id="t-W_R-s" type="number" placeholder="start"   min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+            <input id="t-W_R-d" type="number" placeholder="trvanie" min="0" style="flex:1;font-size:12px;padding:4px 6px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          </div>
+        </div>
+
+        <div id="conflict-warn" style="display:none;font-size:11px;color:#e57373;background:#2a0d0d;border-radius:4px;padding:6px 8px;margin-top:2px"></div>
+
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <button onclick="saveConfig()" style="flex:1;font-size:13px;padding:8px;background:#1a2f1a;border-color:#2a5a2a;color:#80c880">Uložiť</button>
+          <button onclick="clearConfigForm()" style="flex:1;font-size:13px;padding:8px">Vyčistiť</button>
+        </div>
+      </div>
+
+      <div class="pt">Simulácie</div>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button onclick="showForm('start-sim-form')" style="flex:1;font-size:13px;padding:8px 6px">▶ Nová simulácia</button>
+        <button onclick="stopSimAPI()" style="flex:1;font-size:13px;padding:8px 6px;background:#2f1a1a;border-color:#5a2a2a;color:#c88080">■ Stop</button>
+      </div>
+
+      <div id="start-sim-form" style="display:none;flex-direction:column;gap:6px;margin-bottom:8px;padding:10px;background:#111;border-radius:6px;border:1px solid #2a2a2a">
+        <div style="font-size:11px;color:#555;font-weight:600;letter-spacing:.05em">NOVÁ SIMULÁCIA</div>
+        <input id="sim-cfg-id" placeholder="config_id (vyplní sa automaticky)" style="font-size:13px;padding:6px 9px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px;font-family:monospace">
+        <input id="sim-duration" placeholder="Trvanie simulácie (s)" type="number" min="1" max="3600" style="font-size:13px;padding:6px 9px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+        <div style="font-size:11px;color:#555">Intenzita premávky — počet áut za minútu</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+          <input id="sim-n" placeholder="Sever"  type="number" min="0" max="100" style="font-size:13px;padding:6px 7px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          <input id="sim-s" placeholder="Juh"    type="number" min="0" max="100" style="font-size:13px;padding:6px 7px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          <input id="sim-e" placeholder="Východ" type="number" min="0" max="100" style="font-size:13px;padding:6px 7px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+          <input id="sim-w" placeholder="Západ"  type="number" min="0" max="100" style="font-size:13px;padding:6px 7px;background:#0e0e0e;border:1px solid #333;color:#ccc;border-radius:4px">
+        </div>
+        <button onclick="startSimAPI()" style="font-size:13px;padding:8px;background:#1a2f1a;border-color:#2a5a2a;color:#80c880">▶ Spustiť simuláciu</button>
+      </div>
+
+    </div>
+  </aside>
+</main>
+
+<script src="js/canvas.js"></script>
+<script src="js/websocket.js"></script>
+<script src="js/api.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
